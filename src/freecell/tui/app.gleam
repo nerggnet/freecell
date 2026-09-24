@@ -23,6 +23,7 @@ pub type Mode {
   Playing
   ConfirmQuit
   ConfirmNew
+  ConfirmRestart
   Help
 }
 
@@ -185,6 +186,8 @@ pub fn view(state: State) -> View {
       View(..base, message: "Quit? y to quit, anything else to stay.")
     ConfirmNew ->
       View(..base, message: "Abandon this game? y to deal a new one.")
+    ConfirmRestart ->
+      View(..base, message: "Start this deal over? y to shuffle it back.")
     _ -> base
   }
 }
@@ -202,6 +205,7 @@ fn pressed_key(state: State, pressed: Key) -> Step {
     Help -> Continue(State(..state, mode: Playing))
     ConfirmQuit -> answer_quit(state, pressed)
     ConfirmNew -> answer_new(state, pressed)
+    ConfirmRestart -> answer_restart(state, pressed)
     Playing -> play(state, pressed)
   }
 }
@@ -222,6 +226,16 @@ fn answer_new(state: State, pressed: Key) -> Step {
   }
 }
 
+/// Starting over throws away the moves made and counts the deal as given up,
+/// so it asks, like dealing a new game and like quitting. The deal itself is
+/// not lost, but the play is.
+fn answer_restart(state: State, pressed: Key) -> Step {
+  case pressed {
+    Char("y") | Char("Y") -> Continue(restart(State(..state, mode: Playing)))
+    _ -> Continue(State(..state, mode: Playing, message: ""))
+  }
+}
+
 fn play(state: State, pressed: Key) -> Step {
   case pressed {
     // Ctrl-C is the one key that does not stop to ask.
@@ -235,7 +249,7 @@ fn play(state: State, pressed: Key) -> Step {
     Char("u") -> Continue(undo(state))
     Char("r") -> Continue(redo(state))
     Char("n") -> Continue(State(..state, mode: ConfirmNew))
-    Char("R") -> Continue(restart(state))
+    Char("R") -> Continue(State(..state, mode: ConfirmRestart))
     Escape | Backspace ->
       Continue(State(..state, selection: None, held: None, message: ""))
     Up -> Continue(take(state, 1))

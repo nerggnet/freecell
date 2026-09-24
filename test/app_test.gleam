@@ -515,7 +515,7 @@ pub fn restart_deals_the_same_game_again_test() {
   let played = press(start(), [Char("1"), Char("a")])
   assert app.view(played).moves == 1
 
-  let again = press(played, [Char("R")])
+  let again = press(played, [Char("R"), Char("y")])
   assert app.game_number(again) == 1
   assert app.view(again).moves == 0
   assert fixture.columns(app.view(again).board)
@@ -526,20 +526,20 @@ pub fn restart_deals_the_same_game_again_test() {
 pub fn restart_puts_the_clock_back_test() {
   let later = app.at(press(start(), [Char("1"), Char("a")]), 60_000_000)
   assert app.view(later).elapsed == 60
-  assert app.view(press(later, [Char("R")])).elapsed == 0
+  assert app.view(press(later, [Char("R"), Char("y")])).elapsed == 0
 }
 
 /// Restarting is giving up on the deal. Otherwise a streak could be kept alive
 /// indefinitely by starting over whenever one turned awkward.
 pub fn restart_counts_as_a_game_given_up_test() {
-  let again = press(start(), [Char("1"), Char("a"), Char("R")])
+  let again = press(start(), [Char("1"), Char("a"), Char("R"), Char("y")])
   assert app.record(again).played == 1
   assert app.record(again).won == 0
   assert app.record(again).streak == 0
 }
 
 pub fn restarting_an_untouched_deal_costs_nothing_test() {
-  assert app.record(press(start(), [Char("R")])) == stats.empty()
+  assert app.record(press(start(), [Char("R"), Char("y")])) == stats.empty()
 }
 
 // --- Relaxed rules ---------------------------------------------------------
@@ -641,4 +641,45 @@ pub fn declining_the_new_deal_leaves_the_game_alone_test() {
   // And the game is still playable afterwards.
   assert app.view(press(staying, [Char("2")])).selection
     == Some(render.Selection(Cascade(1), 1))
+}
+
+/// Starting over throws away the moves made and counts the deal as given up,
+/// so it asks too. The deal survives; the play does not.
+pub fn r_asks_before_starting_the_deal_over_test() {
+  let played = press(start(), [Char("1"), Char("a")])
+
+  let asking = press(played, [Char("R")])
+  assert string.contains(app.view(asking).message, "Start this deal over?")
+  // Nothing has happened yet.
+  assert app.view(asking).moves == 1
+  assert fixture.cells(app.view(asking).board) == ["6S", ".", ".", "."]
+  assert app.record(asking) == stats.empty()
+
+  let again = press(asking, [Char("y")])
+  assert app.game_number(again) == 1
+  assert app.view(again).moves == 0
+  assert fixture.cells(app.view(again).board) == [".", ".", ".", "."]
+}
+
+pub fn declining_the_restart_leaves_the_game_alone_test() {
+  let played = press(start(), [Char("1"), Char("a")])
+  let staying = press(played, [Char("R"), Char("z")])
+
+  assert app.view(staying).moves == 1
+  assert fixture.cells(app.view(staying).board) == ["6S", ".", ".", "."]
+  assert !string.contains(app.view(staying).message, "Start this deal over")
+  assert app.view(press(staying, [Char("2")])).selection
+    == Some(render.Selection(Cascade(1), 1))
+}
+
+/// The three keys that throw work away all ask, and none of them acts on the
+/// question itself.
+pub fn every_destructive_key_asks_first_test() {
+  let played = press(start(), [Char("1"), Char("a")])
+
+  list.each([Char("q"), Char("n"), Char("R")], fn(key) {
+    let asking = press(played, [key])
+    assert app.view(asking).moves == 1
+    assert app.game_number(asking) == 1
+  })
 }
