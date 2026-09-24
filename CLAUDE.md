@@ -49,6 +49,15 @@ renderer; those are the only two places the orderings meet.
 **`rules.legal` is defined as "`rules.apply` succeeds"**, so there is no second
 copy of the rules to drift out of step.
 
+**`rules.Mode` is threaded, not global.** `Relaxed` lifts only the staging
+limit — runs still have to be runs and still have to land somewhere legal — so
+it changes `capacity` and nothing else about legality. It is carried on the
+`Game`, passed to the solver so hints match the rules being played, and reaches
+`render` as `View.stuck` and `View.carry` rather than by the renderer deciding
+anything. A game that has been relaxed at any point sets `unranked` in `app`
+and is left out of the record; the flag survives switching back, and clears
+only on a new deal.
+
 **`tui/app.update` is pure and must stay that way.** It never searches and
 never reads the clock. To search it returns `Think(...)`, saying what wants
 searching, and the loop in `freecell.gleam` does the blocking part. The clock

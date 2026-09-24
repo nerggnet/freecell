@@ -7,7 +7,7 @@
 
 import freecell/board.{type Board}
 import freecell/deck
-import freecell/rules.{type Illegal, type Move}
+import freecell/rules.{type Illegal, type Mode, type Move}
 import gleam/result
 
 pub type Status {
@@ -24,14 +24,33 @@ pub opaque type Game {
     future: List(Board),
     moves: Int,
     autoplay: Bool,
+    mode: Mode,
   )
 }
 
-/// Deal a numbered game.
-pub fn new(number: Int) -> Game {
+/// Deal a numbered game under the given rules.
+pub fn new(number: Int, mode: Mode) -> Game {
   let assert Ok(dealt) = board.new(deck.deal(number))
     as "a deal always produces eight columns"
-  Game(number:, board: dealt, past: [], future: [], moves: 0, autoplay: True)
+  Game(
+    number:,
+    board: dealt,
+    past: [],
+    future: [],
+    moves: 0,
+    autoplay: True,
+    mode:,
+  )
+}
+
+pub fn mode(game: Game) -> Mode {
+  game.mode
+}
+
+/// Change the rules mid-game. Legal positions stay legal either way, so the
+/// board never needs adjusting — only what may be moved next.
+pub fn set_mode(game: Game, mode: Mode) -> Game {
+  Game(..game, mode: mode)
 }
 
 pub fn board(game: Game) -> Board {
@@ -51,7 +70,7 @@ pub fn auto_play_enabled(game: Game) -> Bool {
 }
 
 pub fn status(game: Game) -> Status {
-  case rules.is_won(game.board), rules.is_stuck(game.board) {
+  case rules.is_won(game.board), rules.is_stuck(game.mode, game.board) {
     True, _ -> Won
     _, True -> Stuck
     _, _ -> Playing
@@ -60,7 +79,11 @@ pub fn status(game: Game) -> Status {
 
 /// Make a move, carrying as many cards as will go, and report how many went.
 pub fn play(game: Game, move: Move) -> Result(#(Game, Int), Illegal) {
-  use #(moved, count) <- result.try(rules.apply_best(game.board, move))
+  use #(moved, count) <- result.try(rules.apply_best(
+    game.mode,
+    game.board,
+    move,
+  ))
   Ok(#(advance(game, moved), count))
 }
 
@@ -74,7 +97,7 @@ pub fn play_run(
   move: Move,
   count: Int,
 ) -> Result(#(Game, Int), Illegal) {
-  use moved <- result.try(rules.apply_run(game.board, move, count))
+  use moved <- result.try(rules.apply_run(game.mode, game.board, move, count))
   Ok(#(advance(game, moved), count))
 }
 

@@ -16,7 +16,7 @@
 import freecell/board.{type Board}
 import freecell/card.{type Card}
 import freecell/location.{type Location, Cascade, Foundation, Free}
-import freecell/rules.{type Move, Move}
+import freecell/rules.{type Mode, type Move, Move}
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/list
@@ -36,6 +36,7 @@ type Node {
 
 type Search {
   Search(
+    mode: Mode,
     frontier: Dict(Int, List(Node)),
     seen: Set(String),
     visited: Int,
@@ -43,10 +44,16 @@ type Search {
   )
 }
 
-pub fn solve(start: Board, budget: Int) -> Outcome {
+pub fn solve(mode: Mode, start: Board, budget: Int) -> Outcome {
   let opening = settle(start)
   let search =
-    Search(frontier: dict.new(), seen: set.new(), visited: 0, budget: budget)
+    Search(
+      mode: mode,
+      frontier: dict.new(),
+      seen: set.new(),
+      visited: 0,
+      budget: budget,
+    )
     |> push(Node(opening, []))
   explore(search)
 }
@@ -67,9 +74,9 @@ fn explore(search: Search) -> Outcome {
 }
 
 fn expand(search: Search, node: Node) -> Search {
-  list.fold(candidates(node.state), search, fn(acc, entry) {
+  list.fold(candidates(search.mode, node.state), search, fn(acc, entry) {
     let #(move, count) = entry
-    case rules.apply_run(node.state, move, count) {
+    case rules.apply_run(search.mode, node.state, move, count) {
       // Generation is a cheap approximation of the rules; anything it gets
       // wrong is simply refused here and dropped.
       Error(_) -> acc
@@ -197,19 +204,19 @@ fn fingerprint(state: Board) -> String {
 // --- Move generation -------------------------------------------------------
 
 /// Moves worth trying. Deliberately cheap: it proposes, `rules` disposes.
-fn candidates(state: Board) -> List(#(Move, Int)) {
+fn candidates(mode: Mode, state: Board) -> List(#(Move, Int)) {
   let from_cascades =
     list.flat_map(indices(board.cascade_count), fn(index) {
-      leaving(state, Cascade(index))
+      leaving(mode, state, Cascade(index))
     })
   let from_cells =
     list.flat_map(indices(board.free_cell_count), fn(index) {
-      leaving(state, Free(index))
+      leaving(mode, state, Free(index))
     })
   list.append(from_cascades, from_cells)
 }
 
-fn leaving(state: Board, from: Location) -> List(#(Move, Int)) {
+fn leaving(mode: Mode, state: Board, from: Location) -> List(#(Move, Int)) {
   case board.exposed(state, from) {
     Error(Nil) -> []
     Ok(top) -> {
@@ -217,7 +224,7 @@ fn leaving(state: Board, from: Location) -> List(#(Move, Int)) {
       list.flatten([
         to_foundation(state, from, top),
         list.flat_map(indices(board.cascade_count), fn(index) {
-          onto_cascade(state, from, top, run, index)
+          onto_cascade(mode, state, from, top, run, index)
         }),
         to_free_cell(state, from),
       ])
@@ -251,6 +258,7 @@ fn to_free_cell(state: Board, from: Location) -> List(#(Move, Int)) {
 }
 
 fn onto_cascade(
+  mode: Mode,
   state: Board,
   from: Location,
   top: Card,
@@ -260,7 +268,7 @@ fn onto_cascade(
   case from == Cascade(index) {
     True -> []
     False -> {
-      let room = rules.capacity(state, Cascade(index))
+      let room = rules.capacity(mode, state, Cascade(index))
       case board.cascade(state, index) {
         Error(Nil) -> []
 

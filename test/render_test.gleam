@@ -27,7 +27,8 @@ fn view_on(board: board.Board) -> View {
     selection: None,
     message: "",
     elapsed: 0,
-    carry: rules.carrying_capacity(board),
+    carry: Some(rules.carrying_capacity(board)),
+    stuck: rules.is_stuck(rules.Standard, board),
   )
 }
 

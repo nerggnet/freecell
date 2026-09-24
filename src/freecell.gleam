@@ -2,6 +2,7 @@
 
 import freecell/deck
 import freecell/render
+import freecell/rules
 import freecell/solver
 import freecell/stats.{type Stats}
 import freecell/tui/ansi
@@ -43,6 +44,7 @@ fn start(args: List(String)) -> Nil {
             chosen_options(args),
             load_record(),
             term.now(),
+            chosen_mode(args),
           ),
         )
       // Reached on quit and on stdin closing, so the terminal is always handed
@@ -106,8 +108,10 @@ fn advance(shown: Shown, state: app.State, input: app.Input) -> app.State {
     app.Continue(next) -> loop(shown, next)
     // Searching can take seconds, so it happens on another process and comes
     // back as an event; the loop keeps taking keys meanwhile.
-    app.Think(next, generation, board, budget) -> {
-      term.in_background(fn() { #(generation, solver.solve(board, budget)) })
+    app.Think(next, generation, mode, board, budget) -> {
+      term.in_background(fn() {
+        #(generation, solver.solve(mode, board, budget))
+      })
       loop(shown, next)
     }
   }
@@ -171,6 +175,16 @@ fn starting_game(args: List(String), seed: Int) -> Int {
   }
 }
 
+/// Relaxed play lifts the limit on how many cards move at once. It is offered
+/// at launch, and `m` switches it during a game, so a new deal can be started
+/// either way without leaving the program.
+fn chosen_mode(args: List(String)) -> rules.Mode {
+  case list.contains(args, "--relaxed") || list.contains(args, "--casual") {
+    True -> rules.Relaxed
+    False -> rules.Standard
+  }
+}
+
 fn chosen_options(args: List(String)) -> render.Options {
   render.Options(
     colour: !list.contains(args, "--no-colour")
@@ -197,6 +211,8 @@ fn usage() -> String {
 
     --game N      deal Microsoft FreeCell game number N (1-32000)
     --seed N      fix the shuffle that `n` draws new games from
+    --relaxed     lift the limit on how many cards move at once
+                  (also --casual); m switches it during a game
     --ascii       write suits as C D H S instead of ♣ ♦ ♥ ♠
     --no-colour   no colour (also --no-color)
     --stats       print your record and exit

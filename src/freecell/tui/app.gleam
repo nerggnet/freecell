@@ -42,6 +42,10 @@ pub opaque type State {
     /// deciding what a keypress does stays a pure function of its inputs.
     started_at: Int,
     now: Int,
+    /// Set once a game has been played under the relaxed rules, and never
+    /// cleared until the next deal. Such a game is left out of the record:
+    /// counting both kinds together would make the record mean two things.
+    unranked: Bool,
     /// Bumped whenever the board changes, so an answer about a board that no
     /// longer exists can be recognised and dropped.
     generation: Int,
@@ -56,7 +60,13 @@ pub type Step {
   /// Search this board and feed the outcome back in as `Searched`. Keeping the
   /// request in the return value is what lets `update` stay pure: it says what
   /// wants doing, and the loop does it somewhere that can afford to block.
-  Think(state: State, generation: Int, board: Board, budget: Int)
+  Think(
+    state: State,
+    generation: Int,
+    mode: rules.Mode,
+    board: Board,
+    budget: Int,
+  )
   /// Carries the state so the caller can save the record before exiting.
   Quit(state: State)
 }
@@ -98,9 +108,10 @@ pub fn new(
   options: Options,
   record: Stats,
   now: Int,
+  mode: rules.Mode,
 ) -> State {
   State(
-    game: game.new(number),
+    game: game.new(number, mode),
     selection: None,
     held: None,
     message: "Pick a column with 1-8, or ? for the keys.",
@@ -113,7 +124,12 @@ pub fn new(
     generation: 0,
     started_at: now,
     now: now,
+    unranked: mode == rules.Relaxed,
   )
+}
+
+pub fn mode(state: State) -> rules.Mode {
+  game.mode(state.game)
 }
 
 /// Tell the game what time it is. The loop does this before each frame.
@@ -157,7 +173,11 @@ pub fn view(state: State) -> View {
       },
       message: state.message,
       elapsed: elapsed(state),
-      carry: rules.carrying_capacity(game.board(state.game)),
+      carry: case game.mode(state.game) {
+        rules.Relaxed -> None
+        rules.Standard -> Some(rules.carrying_capacity(game.board(state.game)))
+      },
+      stuck: game.status(state.game) == game.Stuck,
     )
   case state.mode {
     ConfirmQuit ->
@@ -196,6 +216,7 @@ fn play(state: State, pressed: Key) -> Step {
     Char("q") -> Continue(State(..state, mode: ConfirmQuit))
     Char("?") -> Continue(State(..state, mode: Help))
     Char("p") -> Continue(toggle_auto_play(state))
+    Char("m") -> Continue(toggle_mode(state))
     Char("h") -> think(state, AHint)
     Char("!") -> think(state, AFinish)
     Char("u") -> Continue(undo(state))
@@ -330,11 +351,14 @@ fn deal_next(state: State) -> State {
   changed(
     State(
       ..counted,
-      game: game.new(number),
+      game: game.new(number, game.mode(state.game)),
       selection: None,
+      held: None,
       message: "",
       seed: seed,
       counted: False,
+      unranked: game.mode(state.game) == rules.Relaxed,
+      started_at: state.now,
     ),
   )
 }
@@ -347,13 +371,33 @@ fn restart(state: State) -> State {
   changed(
     State(
       ..counted,
-      game: game.new(game.number(state.game)),
+      game: game.new(game.number(state.game), game.mode(state.game)),
       selection: None,
       held: None,
       message: "Dealt again.",
       counted: False,
+      unranked: game.mode(state.game) == rules.Relaxed,
       started_at: state.now,
     ),
+  )
+}
+
+/// Switch between the standard and relaxed rules. Positions legal under one
+/// are legal under the other, so nothing on the board has to change — only
+/// what may be moved next.
+fn toggle_mode(state: State) -> State {
+  let wanted = case game.mode(state.game) {
+    rules.Standard -> rules.Relaxed
+    rules.Relaxed -> rules.Standard
+  }
+  State(
+    ..changed(State(..state, game: game.set_mode(state.game, wanted))),
+    unranked: state.unranked || wanted == rules.Relaxed,
+    message: case wanted, state.unranked {
+      rules.Relaxed, _ -> "Relaxed rules. This game will not be recorded."
+      rules.Standard, True -> "Standard rules. This game is still not recorded."
+      rules.Standard, False -> "Standard rules."
+    },
   )
 }
 
@@ -373,7 +417,9 @@ fn toggle_auto_play(state: State) -> State {
 
 /// Add a finished game to the record, once.
 fn note_win(state: State) -> State {
-  case game.status(state.game) == game.Won && !state.counted {
+  case
+    game.status(state.game) == game.Won && !state.counted && !state.unranked
+  {
     True ->
       State(..state, record: stats.record_win(state.record), counted: True)
     False -> state
@@ -384,7 +430,7 @@ fn note_win(state: State) -> State {
 /// does not count as a loss — opening the program and closing it again is not
 /// a defeat.
 fn give_up(state: State) -> State {
-  case state.counted || game.moves(state.game) == 0 {
+  case state.counted || state.unranked || game.moves(state.game) == 0 {
     True -> state
     False ->
       State(..state, record: stats.record_loss(state.record), counted: True)
@@ -432,6 +478,7 @@ fn look(state: State, want: Wanted, budget: Int, message: String) -> Step {
       message: message,
     ),
     generation,
+    game.mode(state.game),
     game.board(state.game),
     budget,
   )

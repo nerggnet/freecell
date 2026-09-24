@@ -69,8 +69,12 @@ pub type View {
     message: String,
     /// Seconds since the deal.
     elapsed: Int,
-    /// How many cards can travel as one onto an occupied column.
-    carry: Int,
+    /// How many cards can travel as one onto an occupied column, or `None`
+    /// when the relaxed rules put no limit on it.
+    carry: Option(Int),
+    /// Whether the game has run out of moves. Decided by the caller, which
+    /// knows which rules are in force; the renderer only reports it.
+    stuck: Bool,
   )
 }
 
@@ -150,12 +154,19 @@ fn title(view: View) -> String {
   // will this not move?" — and when it is 1, cards really do move one at a
   // time, which otherwise looks like the game refusing to shift a run.
   let right =
-    int.to_string(view.carry)
-    <> " at a time · "
+    carrying(view.carry)
+    <> " · "
     <> clock(view.elapsed)
     <> " · moves "
     <> int.to_string(view.moves)
   margin <> spread(left, right, board_width - string.length(margin))
+}
+
+fn carrying(carry: Option(Int)) -> String {
+  case carry {
+    Some(cards) -> int.to_string(cards) <> " at a time"
+    None -> "relaxed"
+  }
 }
 
 /// Minutes and seconds. Hours would need a wider header and nobody should be
@@ -420,7 +431,7 @@ fn blank() -> String {
 // --- Footer ----------------------------------------------------------------
 
 fn status(view: View) -> String {
-  let text = case rules.is_won(view.board), rules.is_stuck(view.board) {
+  let text = case rules.is_won(view.board), view.stuck {
     True, _ ->
       "You win — " <> int.to_string(view.moves) <> " moves. n for a new game."
     _, True -> "No moves left. u to undo, n for a new game."
@@ -466,6 +477,10 @@ pub fn help(record: Stats, options: Options) -> List(String) {
       margin <> "  The header counts how many cards move as one: your free",
       margin <> "  cells plus one, doubled for every empty column. Moving",
       margin <> "  into an empty column spends it, so that carries half.",
+      "",
+      margin <> "  Relaxed rules lift that limit entirely — runs move whole,",
+      margin <> "  however little room there is. Games played that way are",
+      margin <> "  not added to your record.",
       "",
       margin <> "Record",
       "",

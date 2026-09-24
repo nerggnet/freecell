@@ -15,6 +15,20 @@ pub type Move {
   Move(from: Location, to: Location)
 }
 
+/// Which rules are being played by.
+pub type Mode {
+  /// The real game: a run only moves if there is somewhere to stage it, one
+  /// card at a time, in free cells and empty columns.
+  Standard
+  /// Runs move whole however little room there is. The staging is the part of
+  /// FreeCell that is bookkeeping rather than thinking, and some players would
+  /// rather not do it.
+  Relaxed
+}
+
+/// More than any run can be: thirteen cards is a whole suit.
+const no_limit = 52
+
 /// Why a move was refused. Kept fine-grained so the interface can say what is
 /// actually wrong rather than just beeping.
 pub type Illegal {
@@ -176,7 +190,18 @@ fn indices(count: Int) -> List(Int) {
 ///
 /// Moving *into* an empty column costs you that column as staging space, so it
 /// does not count towards the doubling.
-pub fn capacity(board board: Board, into into: Location) -> Int {
+pub fn capacity(
+  mode mode: Mode,
+  board board: Board,
+  into into: Location,
+) -> Int {
+  case mode {
+    Relaxed -> no_limit
+    Standard -> standard_capacity(board, into)
+  }
+}
+
+fn standard_capacity(board: Board, into: Location) -> Int {
   case into {
     Cascade(index) ->
       case board.cascade(board, index) {
@@ -219,6 +244,7 @@ pub fn run_length(board board: Board, from from: Location) -> Int {
 
 /// Move `count` cards as a unit.
 pub fn apply_run(
+  mode mode: Mode,
   board board: Board,
   move move: Move,
   count count: Int,
@@ -226,33 +252,40 @@ pub fn apply_run(
   case count {
     n if n < 1 -> Error(NoCardsToMove)
     1 -> apply(board, move)
-    n -> apply_multi(board, move, n)
+    n -> apply_multi(mode, board, move, n)
   }
 }
 
 /// The largest run that can legally make this move, or why none can.
 pub fn longest_run(
+  mode mode: Mode,
   board board: Board,
   move move: Move,
 ) -> Result(Int, Illegal) {
-  largest_run(board, move, run_length(board, move.from))
+  largest_run(mode, board, move, run_length(board, move.from))
 }
 
 /// Make the move with as many cards as will go, reporting how many moved.
 pub fn apply_best(
+  mode mode: Mode,
   board board: Board,
   move move: Move,
 ) -> Result(#(Board, Int), Illegal) {
-  use count <- result.try(longest_run(board, move))
-  use moved <- result.try(apply_run(board, move, count))
+  use count <- result.try(longest_run(mode, board, move))
+  use moved <- result.try(apply_run(mode, board, move, count))
   Ok(#(moved, count))
 }
 
-fn largest_run(board: Board, move: Move, count: Int) -> Result(Int, Illegal) {
+fn largest_run(
+  mode: Mode,
+  board: Board,
+  move: Move,
+  count: Int,
+) -> Result(Int, Illegal) {
   case count < 1 {
     // Nothing to lift at all; ask for one card to get the real reason.
     True -> apply(board, move) |> result.replace(1)
-    False -> try_counts(board, move, count, None)
+    False -> try_counts(mode, board, move, count, None)
   }
 }
 
@@ -261,6 +294,7 @@ fn largest_run(board: Board, move: Move, count: Int) -> Result(Int, Illegal) {
 /// so "there is not enough room for it" is the useful answer, not a complaint
 /// about the single card that was tried last.
 fn try_counts(
+  mode: Mode,
   board: Board,
   move: Move,
   count: Int,
@@ -273,10 +307,10 @@ fn try_counts(
         None -> Error(NoCardsToMove)
       }
     False ->
-      case apply_run(board, move, count) {
+      case apply_run(mode, board, move, count) {
         Ok(_) -> Ok(count)
         Error(reason) ->
-          try_counts(board, move, count - 1, case refusal {
+          try_counts(mode, board, move, count - 1, case refusal {
             None -> Some(reason)
             kept -> kept
           })
@@ -284,7 +318,12 @@ fn try_counts(
   }
 }
 
-fn apply_multi(board: Board, move: Move, count: Int) -> Result(Board, Illegal) {
+fn apply_multi(
+  mode: Mode,
+  board: Board,
+  move: Move,
+  count: Int,
+) -> Result(Board, Illegal) {
   case move.from, move.to {
     Cascade(source), Cascade(target) -> {
       case source == target {
@@ -300,7 +339,7 @@ fn apply_multi(board: Board, move: Move, count: Int) -> Result(Board, Illegal) {
           )
           let #(run, _) = list.split(cards, count)
           use Nil <- result.try(check_run(run, count))
-          use Nil <- result.try(check_capacity(board, move.to, count))
+          use Nil <- result.try(check_capacity(mode, board, move.to, count))
           // The deepest card of the run is the one that touches the
           // destination; the rest ride along on top of it.
           let assert Ok(anchor) = list.last(run)
@@ -323,11 +362,12 @@ fn check_run(run: List(Card), count: Int) -> Result(Nil, Illegal) {
 }
 
 fn check_capacity(
+  mode: Mode,
   board: Board,
   into: Location,
   count: Int,
 ) -> Result(Nil, Illegal) {
-  let room = capacity(board, into)
+  let room = capacity(mode, board, into)
   case count <= room {
     True -> Ok(Nil)
     False -> Error(NotEnoughRoom(room))
@@ -438,11 +478,11 @@ pub fn is_won(board: Board) -> Bool {
 /// Every move available, each with the number of cards it would carry.
 ///
 /// As with `legal_moves`, equivalent destinations are listed separately.
-pub fn available_moves(board: Board) -> List(#(Move, Int)) {
+pub fn available_moves(mode: Mode, board: Board) -> List(#(Move, Int)) {
   list.flat_map(sources(), fn(from) {
     list.filter_map(destinations(), fn(to) {
       let move = Move(from, to)
-      case longest_run(board, move) {
+      case longest_run(mode, board, move) {
         Ok(count) -> Ok(#(move, count))
         Error(_) -> Error(Nil)
       }
@@ -451,6 +491,6 @@ pub fn available_moves(board: Board) -> List(#(Move, Int)) {
 }
 
 /// Lost: nothing left to try, and the game is not won.
-pub fn is_stuck(board: Board) -> Bool {
-  !is_won(board) && available_moves(board) == []
+pub fn is_stuck(mode: Mode, board: Board) -> Bool {
+  !is_won(board) && available_moves(mode, board) == []
 }

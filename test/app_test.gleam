@@ -16,7 +16,7 @@ import gleam/option.{None, Some}
 import gleam/string
 
 fn start() -> app.State {
-  app.new(1, 0, render.plain(), stats.empty(), 0)
+  app.new(1, 0, render.plain(), stats.empty(), 0, rules.Standard)
 }
 
 /// Feed keys in, expecting the game to keep running.
@@ -217,7 +217,7 @@ pub fn p_toggles_auto_play_test() {
 /// With auto-play off the ace of spades that game 2 deals face up stays put.
 pub fn auto_play_off_leaves_cards_alone_test() {
   let manual =
-    app.new(2, 0, render.plain(), stats.empty(), 0)
+    app.new(2, 0, render.plain(), stats.empty(), 0, rules.Standard)
     |> fn(state) { press(state, [Char("p")]) }
   let moved = press(manual, [Char("2"), Char("a")])
   assert fixture.foundations(app.view(moved).board) == "C:0 D:0 H:0 S:0"
@@ -227,7 +227,7 @@ pub fn auto_play_off_leaves_cards_alone_test() {
 }
 
 fn start_of_game_two() -> app.State {
-  app.new(2, 0, render.plain(), stats.empty(), 0)
+  app.new(2, 0, render.plain(), stats.empty(), 0, rules.Standard)
 }
 
 // --- Keeping score ---------------------------------------------------------
@@ -264,7 +264,8 @@ pub fn a_game_is_not_counted_twice_test() {
 /// the record — is exercised the way a person would.
 pub fn winning_a_game_is_recorded_test() {
   let assert Ok(dealt) = board.new(deck.deal(1))
-  let assert solver.Solved(moves, _) = solver.solve(dealt, 20_000)
+  let assert solver.Solved(moves, _) =
+    solver.solve(rules.Standard, dealt, 20_000)
 
   let keystrokes =
     list.flat_map(moves, fn(entry) {
@@ -295,7 +296,7 @@ fn key_for(place: Location) -> Key {
 /// `update` does not search; it asks to be searched for, and the loop obliges.
 /// That is what keeps it pure and the game responsive while thinking.
 pub fn h_asks_for_a_search_rather_than_running_one_test() {
-  let assert app.Think(thinking, _generation, asked_about, budget) =
+  let assert app.Think(thinking, _generation, _, asked_about, budget) =
     app.update(start(), app.KeyPress(Char("h")))
   assert budget > 0
   assert fixture.columns(asked_about)
@@ -304,12 +305,15 @@ pub fn h_asks_for_a_search_rather_than_running_one_test() {
 }
 
 pub fn a_hint_names_a_move_test() {
-  let assert app.Think(thinking, generation, asked_about, budget) =
+  let assert app.Think(thinking, generation, _, asked_about, budget) =
     app.update(start(), app.KeyPress(Char("h")))
   let assert app.Continue(hinted) =
     app.update(
       thinking,
-      app.Searched(generation, solver.solve(asked_about, budget)),
+      app.Searched(
+        generation,
+        solver.solve(rules.Standard, asked_about, budget),
+      ),
     )
 
   let said = app.view(hinted).message
@@ -321,10 +325,10 @@ pub fn a_hint_names_a_move_test() {
 /// every deal the quick look gives up on yields to a longer one, so refusing
 /// there would be telling the player something untrue.
 pub fn a_fruitless_first_look_escalates_test() {
-  let assert app.Think(thinking, generation, _, first) =
+  let assert app.Think(thinking, generation, _, _, first) =
     app.update(start(), app.KeyPress(Char("h")))
 
-  let assert app.Think(harder, _, _, second) =
+  let assert app.Think(harder, _, _, _, second) =
     app.update(thinking, app.Searched(generation, solver.Unsolved(99, True)))
   assert second > first
   assert string.contains(app.view(harder).message, "looking harder")
@@ -340,14 +344,15 @@ pub fn a_hint_admits_defeat_after_looking_harder_test() {
 /// Drive a search through every stage, answering each with nothing found.
 fn exhaust(state: app.State, key: Key) -> app.Step {
   case app.update(state, app.KeyPress(key)) {
-    app.Think(thinking, generation, _, _) -> keep_failing(thinking, generation)
+    app.Think(thinking, generation, _, _, _) ->
+      keep_failing(thinking, generation)
     other -> other
   }
 }
 
 fn keep_failing(state: app.State, generation: Int) -> app.Step {
   case app.update(state, app.Searched(generation, solver.Unsolved(99, True))) {
-    app.Think(again, next_generation, _, _) ->
+    app.Think(again, next_generation, _, _, _) ->
       keep_failing(again, next_generation)
     other -> other
   }
@@ -356,7 +361,7 @@ fn keep_failing(state: app.State, generation: Int) -> app.Step {
 /// The board can move on while a search runs. Its answer is then about a
 /// position that no longer exists, and must be thrown away.
 pub fn an_answer_about_a_stale_board_is_dropped_test() {
-  let assert app.Think(thinking, generation, _, _) =
+  let assert app.Think(thinking, generation, _, _, _) =
     app.update(start(), app.KeyPress(Char("h")))
   let moved = press(thinking, [Char("1"), Char("a")])
 
@@ -367,7 +372,7 @@ pub fn an_answer_about_a_stale_board_is_dropped_test() {
 }
 
 pub fn asking_twice_does_not_start_two_searches_test() {
-  let assert app.Think(thinking, _, _, _) =
+  let assert app.Think(thinking, _, _, _, _) =
     app.update(start(), app.KeyPress(Char("h")))
   let assert app.Continue(again) = app.update(thinking, app.KeyPress(Char("h")))
   assert app.view(again).message == "Still thinking."
@@ -375,12 +380,15 @@ pub fn asking_twice_does_not_start_two_searches_test() {
 
 /// The real solver, on a real deal, played through to a win by the game.
 pub fn finishing_plays_the_game_out_and_records_the_win_test() {
-  let assert app.Think(thinking, generation, asked_about, budget) =
+  let assert app.Think(thinking, generation, _, asked_about, budget) =
     app.update(start(), app.KeyPress(Char("!")))
   let assert app.Continue(finished) =
     app.update(
       thinking,
-      app.Searched(generation, solver.solve(asked_about, budget)),
+      app.Searched(
+        generation,
+        solver.solve(rules.Standard, asked_about, budget),
+      ),
     )
 
   assert app.view(finished).message == "Finished."
@@ -397,9 +405,9 @@ pub fn finishing_admits_when_it_cannot_test() {
 /// The board can still move on mid-escalation, and the longer look's answer
 /// has to be dropped just like the first one's.
 pub fn a_stale_answer_from_the_longer_look_is_dropped_test() {
-  let assert app.Think(thinking, generation, _, _) =
+  let assert app.Think(thinking, generation, _, _, _) =
     app.update(start(), app.KeyPress(Char("h")))
-  let assert app.Think(harder, second_generation, _, _) =
+  let assert app.Think(harder, second_generation, _, _, _) =
     app.update(thinking, app.Searched(generation, solver.Unsolved(99, True)))
 
   let moved = press(harder, [Char("1"), Char("a")])
@@ -413,12 +421,15 @@ pub fn a_stale_answer_from_the_longer_look_is_dropped_test() {
 
 /// A first look that succeeds answers straight away rather than grinding on.
 pub fn a_successful_first_look_does_not_escalate_test() {
-  let assert app.Think(thinking, generation, asked_about, budget) =
+  let assert app.Think(thinking, generation, _, asked_about, budget) =
     app.update(start(), app.KeyPress(Char("h")))
   let assert app.Continue(hinted) =
     app.update(
       thinking,
-      app.Searched(generation, solver.solve(asked_about, budget)),
+      app.Searched(
+        generation,
+        solver.solve(rules.Standard, asked_about, budget),
+      ),
     )
   assert string.starts_with(app.view(hinted).message, "Try ")
 }
@@ -433,7 +444,7 @@ pub fn the_help_mentions_hints_test() {
 
 /// Game 251 deals Q♠ J♥ T♣ at the foot of column 3: a run of three.
 fn with_a_run() -> app.State {
-  app.new(251, 0, render.plain(), stats.empty(), 0)
+  app.new(251, 0, render.plain(), stats.empty(), 0, rules.Standard)
 }
 
 pub fn a_column_is_picked_up_run_and_all_test() {
@@ -529,4 +540,74 @@ pub fn restart_counts_as_a_game_given_up_test() {
 
 pub fn restarting_an_untouched_deal_costs_nothing_test() {
   assert app.record(press(start(), [Char("R")])) == stats.empty()
+}
+
+// --- Relaxed rules ---------------------------------------------------------
+
+fn casual() -> app.State {
+  app.new(1, 0, render.plain(), stats.empty(), 0, rules.Relaxed)
+}
+
+pub fn m_switches_between_the_rules_test() {
+  assert app.mode(start()) == rules.Standard
+
+  let relaxed = press(start(), [Char("m")])
+  assert app.mode(relaxed) == rules.Relaxed
+  assert message(relaxed) == "Relaxed rules. This game will not be recorded."
+
+  let back = press(relaxed, [Char("m")])
+  assert app.mode(back) == rules.Standard
+  assert message(back) == "Standard rules. This game is still not recorded."
+}
+
+/// There is no carrying limit to report under the relaxed rules, so the header
+/// says which rules are in force instead of a number.
+pub fn the_header_says_when_the_rules_are_relaxed_test() {
+  assert app.view(start()).carry == Some(5)
+  assert app.view(casual()).carry == None
+  assert app.view(press(start(), [Char("m")])).carry == None
+}
+
+/// A relaxed game is left out of the record, win or lose. Counting both kinds
+/// together would make the record mean two things at once.
+pub fn relaxed_games_are_not_recorded_test() {
+  let played = press(casual(), [Char("1"), Char("a")])
+  assert app.view(played).moves == 1
+
+  let assert app.Quit(final) = app.update(played, app.KeyPress(Ctrl("c")))
+  assert app.record(final) == stats.empty()
+}
+
+/// Switching to relaxed part-way through taints the game, and switching back
+/// does not wash it out.
+pub fn a_game_touched_by_relaxed_rules_stays_unrecorded_test() {
+  let played = press(start(), [Char("1"), Char("a"), Char("m"), Char("m")])
+  let assert app.Quit(final) = app.update(played, app.KeyPress(Ctrl("c")))
+  assert app.record(final) == stats.empty()
+}
+
+pub fn a_new_deal_keeps_the_rules_in_force_test() {
+  let dealt = press(press(start(), [Char("m")]), [Char("n")])
+  assert app.mode(dealt) == rules.Relaxed
+  assert app.view(dealt).carry == None
+}
+
+/// Going back to the standard rules and dealing again starts a game that
+/// counts once more.
+pub fn a_fresh_standard_deal_counts_again_test() {
+  let back = press(start(), [Char("1"), Char("a"), Char("m"), Char("m")])
+  let dealt = press(back, [Char("n")])
+  assert app.mode(dealt) == rules.Standard
+
+  let played = press(dealt, [Char("1"), Char("a")])
+  let assert app.Quit(final) = app.update(played, app.KeyPress(Ctrl("c")))
+  assert app.record(final).played == 1
+}
+
+/// A new deal starts its own clock. Only `R` was covered before, and `n` had
+/// quietly never reset it.
+pub fn a_new_deal_starts_the_clock_again_test() {
+  let later = app.at(press(start(), [Char("1"), Char("a")]), 90_000_000)
+  assert app.view(later).elapsed == 90
+  assert app.view(press(later, [Char("n")])).elapsed == 0
 }

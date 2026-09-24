@@ -62,6 +62,7 @@ Moves take two keys: one to pick a card up, one to say where it goes.
 | `h` | suggest a move, if there is one |
 | `!` | finish the game, if it can be finished |
 | `p` | auto-play to the foundations on/off |
+| `m` | relaxed rules on/off |
 | `?` | the key list, and your record |
 | `q` | quit |
 
@@ -75,6 +76,14 @@ How many is "as many as there is room for"? The header says. It is one for
 each free cell plus one, doubled for every empty column — so with every cell
 full and nowhere empty it really is one, and cards really do move one at a
 time. Moving *into* an empty column spends it, so that carries half as many.
+
+If that bookkeeping is not what you came for, `freecell --relaxed` lifts the
+limit: runs move whole however little room there is. `m` switches it on and
+off during a game, and a new deal keeps whichever rules are in force, so you
+can start either way without leaving the program. The stacking rules are
+untouched — cards still go down in rank and alternate in colour — and games
+played this way are left out of your record, since counting them alongside the
+rest would make it mean two things at once.
 
 Games are numbered as in Microsoft FreeCell, so `--game 617` deals the same
 cards here as anywhere else. Wins and losses are kept in

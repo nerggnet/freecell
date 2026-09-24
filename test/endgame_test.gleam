@@ -80,7 +80,7 @@ pub fn a_board_is_won_when_every_suit_is_home_test() {
       #(Spades, 13),
     ])
   assert rules.is_won(complete)
-  assert !rules.is_stuck(complete)
+  assert !rules.is_stuck(rules.Standard, complete)
 
   let almost =
     fixture.board_from(empty_columns())
@@ -99,16 +99,16 @@ pub fn a_board_with_no_moves_is_stuck_test() {
   let dead =
     fixture.board_from(["2C", "2D", "2H", "2S", "4C", "4D", "4H", "4S"])
     |> fixture.with_cells(["6C", "6D", "6H", "6S"])
-  assert rules.available_moves(dead) == []
-  assert rules.is_stuck(dead)
+  assert rules.available_moves(rules.Standard, dead) == []
+  assert rules.is_stuck(rules.Standard, dead)
   assert !rules.is_won(dead)
 }
 
 pub fn a_fresh_deal_is_neither_won_nor_stuck_test() {
   let assert Ok(dealt) = board.new(deck.deal(617))
   assert !rules.is_won(dealt)
-  assert !rules.is_stuck(dealt)
-  assert rules.available_moves(dealt) != []
+  assert !rules.is_stuck(rules.Standard, dealt)
+  assert rules.available_moves(rules.Standard, dealt) != []
 }
 
 /// The end-to-end check, and the one that matters most: real numbered deals
@@ -120,14 +120,16 @@ pub fn a_fresh_deal_is_neither_won_nor_stuck_test() {
 pub fn real_deals_can_be_played_through_to_a_win_test() {
   list.each([1, 3, 7, 8, 14, 15], fn(game_number) {
     let assert Ok(start) = board.new(deck.deal(game_number))
-    let assert solver.Solved(moves, _) = solver.solve(start, 20_000)
+    let assert solver.Solved(moves, _) =
+      solver.solve(rules.Standard, start, 20_000)
       as { "game " <> int.to_string(game_number) <> " should be solvable" }
     assert moves != []
 
     let finish =
       list.fold(moves, settle(start), fn(state, entry) {
         let #(move, count) = entry
-        let assert Ok(next) = rules.apply_run(state, move, count)
+        let assert Ok(next) =
+          rules.apply_run(rules.Standard, state, move, count)
         settle(next)
       })
 
@@ -145,5 +147,5 @@ pub fn real_deals_can_be_played_through_to_a_win_test() {
 /// positions won would fail here loudly.
 pub fn the_unsolvable_deal_yields_no_win_test() {
   let assert Ok(start) = board.new(deck.deal(11_982))
-  let assert solver.Unsolved(_, _) = solver.solve(start, 4000)
+  let assert solver.Unsolved(_, _) = solver.solve(rules.Standard, start, 4000)
 }
