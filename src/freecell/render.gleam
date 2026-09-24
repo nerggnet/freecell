@@ -26,6 +26,14 @@ pub const cell_keys = ["a", "s", "d", "f"]
 /// Every frame is exactly this wide, so callers can centre it.
 pub const board_width = 64
 
+/// The room the deepest possible board needs: ten lines of chrome, a cascade
+/// of nineteen — a dealt seven whose exposed card is a king with a full
+/// queen-to-ace run laid on it — and the two rows that frame its foot.
+pub const board_height = 33
+
+/// The blank line, the status and the keys, which `fill` keeps at the foot.
+const footer_height = 3
+
 const margin = "  "
 
 /// The card face between its two rails: " J♦ ".
@@ -302,6 +310,7 @@ fn cascades(
   edges: Edges,
 ) -> List(String) {
   let piles = list.map(columns(), fn(index) { display_column(state, index) })
+
   let depth = piles |> list.map(list.length) |> list.fold(0, int.max)
 
   list.map(indices(depth + 2), fn(row) {
@@ -478,7 +487,7 @@ fn hints() -> String {
 
 /// The key list and the record of games played. Same width as the board, so
 /// the caller can centre it the same way.
-pub fn help(record: Stats, options: Options) -> List(String) {
+pub fn help(record: Stats) -> List(String) {
   list.map(
     [
       "",
@@ -562,4 +571,19 @@ fn unwrap_list(result: Result(List(a), Nil)) -> List(a) {
     Ok(items) -> items
     Error(Nil) -> []
   }
+}
+
+/// Pad a frame out to `height` lines by growing the gap above the footer.
+///
+/// Laid out at its own height the board drifts up and down the screen as
+/// columns grow and shrink, because centring it depends on how tall it
+/// happens to be. Filling a constant block instead pins the header, the cards
+/// and the status line in place. The height is passed in rather than fixed,
+/// so a terminal too short for the whole reserve simply gets less of it
+/// instead of losing the footer off the bottom.
+pub fn fill(lines: List(String), height: Int) -> List(String) {
+  let padding = int.max(height - list.length(lines), 0)
+  let #(body, footer) =
+    list.split(lines, int.max(list.length(lines) - footer_height, 0))
+  list.flatten([body, list.repeat("", padding), footer])
 }

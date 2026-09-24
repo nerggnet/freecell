@@ -74,7 +74,14 @@ fn loop(shown: Shown, state: app.State) -> app.State {
   // The clock lives out here, so the game itself stays a pure function of what
   // it is told.
   let ticking = app.at(state, term.now())
-  let wanted = Shown(term.size(), app.screen(ticking))
+  let #(columns, rows) = term.size()
+  // Reserve the deepest board's worth of lines so the layout keeps still, but
+  // never more than the terminal has, or a short one would lose its footer.
+  let wanted =
+    Shown(
+      #(columns, rows),
+      app.screen(ticking, int.min(render.board_height, rows)),
+    )
   let shown = case wanted == shown {
     True -> shown
     False -> {

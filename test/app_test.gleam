@@ -186,7 +186,7 @@ pub fn every_refusal_has_a_message_test() {
 
 pub fn question_mark_shows_the_keys_test() {
   let helping = press(start(), [Char("?")])
-  let shown = app.screen(helping) |> string.join("\n")
+  let shown = app.screen(helping, 0) |> string.join("\n")
   assert string.contains(shown, "pick up a column")
   assert string.contains(shown, "undo, redo")
   assert string.contains(shown, "Record")
@@ -198,7 +198,10 @@ pub fn question_mark_shows_the_keys_test() {
 pub fn any_key_dismisses_the_help_test() {
   list.each([Char("?"), Escape, Char("z"), Space], fn(pressed) {
     let back = press(press(start(), [Char("?")]), [pressed])
-    assert string.contains(string.join(app.screen(back), "\n"), "FreeCell #1")
+    assert string.contains(
+      string.join(app.screen(back, 0), "\n"),
+      "FreeCell #1",
+    )
   })
 }
 
@@ -281,10 +284,10 @@ pub fn winning_a_game_is_recorded_test() {
   // the last thing a player does is ask for the finish.
   let brink = press(start(), keystrokes)
   assert app.view(brink).ready
-  assert !string.contains(string.join(app.screen(brink), "\n"), "You win")
+  assert !string.contains(string.join(app.screen(brink, 0), "\n"), "You win")
 
   let finished = press(brink, [Space])
-  assert string.contains(string.join(app.screen(finished), "\n"), "You win")
+  assert string.contains(string.join(app.screen(finished, 0), "\n"), "You win")
   assert app.record(finished)
     == stats.Stats(played: 1, won: 1, streak: 1, best_streak: 1)
 }
@@ -402,7 +405,7 @@ pub fn finishing_plays_the_game_out_and_records_the_win_test() {
     )
 
   assert app.view(finished).message == "Finished."
-  assert string.contains(string.join(app.screen(finished), "\n"), "You win")
+  assert string.contains(string.join(app.screen(finished, 0), "\n"), "You win")
   assert app.record(finished)
     == stats.Stats(played: 1, won: 1, streak: 1, best_streak: 1)
 }
@@ -445,7 +448,7 @@ pub fn a_successful_first_look_does_not_escalate_test() {
 }
 
 pub fn the_help_mentions_hints_test() {
-  let shown = app.screen(press(start(), [Char("?")])) |> string.join("\n")
+  let shown = app.screen(press(start(), [Char("?")]), 0) |> string.join("\n")
   assert string.contains(shown, "suggest a move")
   assert string.contains(shown, "finish the game")
 }
@@ -717,7 +720,7 @@ pub fn a_decided_game_waits_to_be_finished_test() {
   assert app.view(brink).ready
   assert !rules.is_won(app.view(brink).board)
   assert string.contains(
-    string.join(app.screen(brink), "\n"),
+    string.join(app.screen(brink, 0), "\n"),
     "Every card can go home",
   )
   // Not won, so not yet counted.
@@ -746,13 +749,13 @@ pub fn bang_finishes_a_decided_game_without_searching_test() {
 /// looked dead and `n` silently cancelled a question it had never shown.
 pub fn the_prompts_are_visible_after_winning_test() {
   let won = press(at_the_brink(), [Space])
-  assert string.contains(string.join(app.screen(won), "\n"), "You win")
+  assert string.contains(string.join(app.screen(won, 0), "\n"), "You win")
 
   let asking = press(won, [Char("q")])
-  assert string.contains(string.join(app.screen(asking), "\n"), "Quit?")
+  assert string.contains(string.join(app.screen(asking, 0), "\n"), "Quit?")
   let assert app.Quit(_) = app.update(asking, app.KeyPress(Char("y")))
 
   let dealing = press(won, [Char("n")])
-  assert string.contains(string.join(app.screen(dealing), "\n"), "Abandon")
+  assert string.contains(string.join(app.screen(dealing, 0), "\n"), "Abandon")
   assert app.game_number(press(dealing, [Char("y")])) != 1
 }

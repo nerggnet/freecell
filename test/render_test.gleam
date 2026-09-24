@@ -323,7 +323,54 @@ pub fn the_header_counts_what_can_be_carried_test() {
 }
 
 pub fn the_help_explains_carrying_test() {
-  let shown = render.help(stats.empty(), render.plain()) |> string.join("\n")
+  let shown = render.help(stats.empty()) |> string.join("\n")
   assert string.contains(shown, "Carrying")
   assert string.contains(shown, "doubled for every empty column")
+}
+
+// --- Keeping still ---------------------------------------------------------
+
+/// Laid out at its own height the board drifts up and down the screen as
+/// columns grow and shrink. Filled to a constant block it keeps still.
+pub fn a_filled_frame_is_always_the_same_height_test() {
+  let short = fixture.board_from(["KS", "", "", "", "", "", "", ""])
+  let tall =
+    fixture.board_from([
+      "KS QH JS TH 9S 8H 7S 6H 5S 4H 3S 2H AS",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ])
+
+  list.each([short, tall], fn(board) {
+    let filled =
+      render.fill(
+        render.frame(view_on(board), render.plain()),
+        render.board_height,
+      )
+    assert list.length(filled) == render.board_height
+  })
+}
+
+/// The padding grows above the footer, not below it, so the status line sits
+/// in the same place whatever the cascades are doing.
+pub fn filling_keeps_the_footer_at_the_foot_test() {
+  let lines = render.frame(view_of(1), render.plain())
+  let filled = render.fill(lines, render.board_height)
+
+  assert list.drop(filled, list.length(filled) - 3)
+    == list.drop(lines, list.length(lines) - 3)
+}
+
+/// A board too tall for the reserve keeps all of itself. A terminal with less
+/// room than the reserve simply gets less padding.
+pub fn filling_never_shortens_a_frame_test() {
+  let lines = render.frame(view_of(1), render.plain())
+  assert render.fill(lines, 0) == lines
+  assert render.fill(lines, 5) == lines
+  assert list.length(render.fill(lines, 24)) == 24
 }

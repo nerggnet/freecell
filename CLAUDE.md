@@ -104,7 +104,13 @@ shows the figure for an *occupied* destination; moving into an empty column
 halves it, which `rules.capacity` accounts for and the refusal message names
 exactly.
 
-`render.frame` produces `14 + tallest cascade` lines. A cascade can never
+`render.frame` produces `14 + tallest cascade` lines, and `render.fill` pads
+that out to a given height by growing the gap *above* the footer. The loop asks
+for `min(board_height, rows)`. Without it the board drifts up and down the
+screen as columns grow and shrink, because centring depends on how tall it
+happens to be; with it the header, the cards and the status line all keep
+still. The height is passed in rather than fixed so an 80x24 terminal gets a
+smaller reserve instead of losing its footer off the bottom. A cascade can never
 exceed 19 cards (a dealt seven ending in a king, plus a full queen-to-ace run),
 so the worst board is 33 rows and 64 columns. A test pins this.
 

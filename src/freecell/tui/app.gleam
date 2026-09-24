@@ -148,10 +148,14 @@ pub fn record(state: State) -> Stats {
 }
 
 /// The lines to draw: the board, or the help screen over it.
-pub fn screen(state: State) -> List(String) {
+///
+/// `height` is how many lines there is room for. The board is padded out to
+/// fill it so that it keeps still as the columns change; the help screen is
+/// left at its own height, having no columns to shuffle.
+pub fn screen(state: State, height: Int) -> List(String) {
   case state.mode {
-    Help -> render.help(state.record, state.options)
-    _ -> render.frame(view(state), state.options)
+    Help -> render.help(state.record)
+    _ -> render.fill(render.frame(view(state), state.options), height)
   }
 }
 
