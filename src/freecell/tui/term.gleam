@@ -11,9 +11,6 @@ fn ffi_start_raw() -> Result(Nil, String)
 @external(erlang, "freecell_ffi", "read_byte")
 fn ffi_read_byte() -> Result(BitArray, Nil)
 
-@external(erlang, "freecell_ffi", "await_input")
-fn ffi_await_input() -> Input
-
 @external(erlang, "freecell_ffi", "read_input")
 fn ffi_read_input(timeout: Int) -> Input
 
@@ -45,13 +42,41 @@ pub fn read_byte() -> Result(Int, Nil) {
   }
 }
 
-/// Read one keypress, assembling escape sequences as they arrive.
-pub fn read_key() -> Result(key.Key, Nil) {
-  case ffi_await_input() {
-    Closed -> Error(Nil)
-    Timeout -> Error(Nil)
-    Byte(27) -> read_escape()
-    Byte(byte) -> Ok(key.from_byte(byte))
+/// Something the loop can wait for.
+pub type Event(value) {
+  Pressed(key: key.Key)
+  /// A result from work handed to `in_background`.
+  Delivered(value: value)
+  /// Standard input closed.
+  Gone
+}
+
+/// What `await_event` hands back, before escape sequences are assembled.
+type Incoming(value) {
+  IncomingByte(value: Int)
+  IncomingValue(value: value)
+  IncomingClosed
+}
+
+@external(erlang, "freecell_ffi", "await_event")
+fn ffi_await_event() -> Incoming(value)
+
+/// Run `work` elsewhere and deliver its result to the loop as an event.
+@external(erlang, "freecell_ffi", "spawn_search")
+pub fn in_background(work: fn() -> value) -> Nil
+
+/// Wait for the next thing to happen, assembling escape sequences as they
+/// arrive.
+pub fn next_event() -> Event(value) {
+  case ffi_await_event() {
+    IncomingClosed -> Gone
+    IncomingValue(value) -> Delivered(value)
+    IncomingByte(27) ->
+      case read_escape() {
+        Ok(pressed) -> Pressed(pressed)
+        Error(Nil) -> Gone
+      }
+    IncomingByte(byte) -> Pressed(key.from_byte(byte))
   }
 }
 

@@ -1,14 +1,17 @@
-//// A FreeCell solver used only by the tests.
+//// A FreeCell solver, used for hints and for finishing a game off.
 ////
-//// This is not part of the game. It exists so the rules engine can be checked
-//// against the only standard that really matters: whether a real numbered
-//// deal can actually be played through to a win.
+//// It also underwrites the tests: a rules engine is only as trustworthy as
+//// its ability to play real numbered deals through to a win.
 ////
 //// It is a best-first search. Positions are ranked by how many cards are
 //// still off the foundations, with a nudge towards keeping cells and columns
 //// free, and the most promising position is always expanded next. Plain
 //// depth-first search wanders for hundreds of thousands of positions on deals
 //// this one cracks in a few thousand.
+////
+//// It does not always succeed. A budget bounds the work, and some deals — 617
+//// among them — defeat it entirely. Callers must be able to say so rather
+//// than assume a solution exists.
 
 import freecell/board.{type Board}
 import freecell/card.{type Card}

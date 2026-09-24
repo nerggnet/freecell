@@ -41,7 +41,7 @@ pub fn game_one_renders_exactly_this_test() {
     "   6♠     9♣     2♥     6♥",
     "",
     "",
-    "  1-8 col · asdf cells · space home · u undo · q quit",
+    "  1-8 · asdf · u undo · h hint · ? keys · q quit",
   ]
   assert render.frame(view_of(1), render.plain()) == expected
 }

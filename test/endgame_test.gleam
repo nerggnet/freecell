@@ -4,9 +4,9 @@ import freecell/card.{Card, Clubs, Diamonds, Hearts, Spades}
 import freecell/deck
 import freecell/location.{Cascade, Foundation}
 import freecell/rules
+import freecell/solver
 import gleam/int
 import gleam/list
-import solver
 
 fn settle(state: Board) -> Board {
   let #(next, _) = rules.auto_play(state)

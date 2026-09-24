@@ -8,7 +8,8 @@
 
 -export([start_raw/0, read_byte/0, term_size/0, write/1,
          await_input/0, read_input/1, arguments/0, now_micros/0,
-         read_file/1, write_file/2, stats_path/0, version/0]).
+         read_file/1, write_file/2, stats_path/0, version/0,
+         spawn_search/1, await_event/0]).
 
 start_raw() ->
     case shell:start_interactive({noshell, raw}) of
@@ -67,7 +68,28 @@ await_input() ->
         {freecell_key, Byte} -> {byte, Byte}
     end.
 
+%% Run Fun on another process and post its result back here.
+%%
+%% Searching for a solution can take seconds. Doing it on this process would
+%% freeze the game mid-keypress; doing it on another turns the result into one
+%% more message the loop already knows how to wait for.
+spawn_search(Fun) ->
+    Owner = self(),
+    spawn(fun() -> Owner ! {freecell_search, Fun()} end),
+    nil.
+
+%% Block until either a key or a search result arrives.
+await_event() ->
+    receive
+        freecell_input_closed -> incoming_closed;
+        {freecell_key, Byte} -> {incoming_byte, Byte};
+        {freecell_search, Value} -> {incoming_value, Value}
+    end.
+
 %% Wait up to Timeout milliseconds for a key.
+%%
+%% Matches only keys, so a search result arriving mid escape-sequence stays in
+%% the mailbox for await_event rather than being mistaken for one.
 read_input(Timeout) ->
     receive
         freecell_input_closed -> closed;

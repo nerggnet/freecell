@@ -50,6 +50,8 @@ Moves take two keys: one to pick a card up, one to say where it goes.
 | `esc` | put the card back |
 | `u` / `r` | undo / redo |
 | `n` | deal a new game |
+| `h` | suggest a move, if there is one |
+| `!` | finish the game, if it can be finished |
 | `p` | auto-play to the foundations on/off |
 | `?` | the key list, and your record |
 | `q` | quit |
@@ -73,6 +75,7 @@ it can be tested without a terminal anywhere in sight.
 | `card`, `deck` | cards, and the deal algorithm behind the numbered games |
 | `board` | eight cascades, four free cells, four foundations |
 | `rules` | what is legal, runs of cards, auto-play, won and stuck |
+| `solver` | a best-first search, behind hints and finishing |
 | `game` | a game in progress, with undo and redo |
 | `render` | a board to lines of text — optionally coloured |
 | `stats` | the record, and its file format |
@@ -105,7 +108,11 @@ gleam format src test
 single escript. Pushing a `v*` tag builds and publishes one the same way, from
 `.github/workflows/release.yml`.
 
-`test/solver.gleam` is a best-first search that ships with nothing. It exists
-so the rules can be checked against the only standard that really matters:
-whether real numbered deals can be played through to a win. It solves most
-deals in well under 100ms, though a few — game 617 among them — defeat it.
+`src/freecell/solver.gleam` is a best-first search. It powers `h` and `!`, and
+it underwrites the tests: the rules are checked against whether real numbered
+deals can actually be played through to a win. It solves most deals in well
+under 100ms, though a few — game 617 among them — defeat it, which is why a
+hint is allowed to say it cannot find one.
+
+Searching runs on its own process and its result arrives as one more event the
+loop already waits for, so the game keeps taking keys while it thinks.

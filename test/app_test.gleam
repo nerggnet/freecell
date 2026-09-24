@@ -4,6 +4,7 @@ import freecell/deck
 import freecell/location.{type Location, Cascade, Foundation, Free}
 import freecell/render
 import freecell/rules
+import freecell/solver
 import freecell/stats
 import freecell/tui/app
 import freecell/tui/key.{type Key, Backspace, Char, Ctrl, Enter, Escape, Space}
@@ -11,7 +12,6 @@ import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
-import solver
 
 fn start() -> app.State {
   app.new(1, 0, render.plain(), stats.empty())
@@ -20,7 +20,7 @@ fn start() -> app.State {
 /// Feed keys in, expecting the game to keep running.
 fn press(state: app.State, keys: List(Key)) -> app.State {
   list.fold(keys, state, fn(current, pressed) {
-    let assert app.Continue(next) = app.update(current, pressed)
+    let assert app.Continue(next) = app.update(current, app.KeyPress(pressed))
       as { "unexpected quit on " <> string.inspect(pressed) }
     next
   })
@@ -112,14 +112,14 @@ pub fn undo_at_the_start_says_there_is_nothing_to_undo_test() {
 // --- Quitting --------------------------------------------------------------
 
 pub fn q_asks_before_quitting_test() {
-  let assert app.Continue(asking) = app.update(start(), Char("q"))
+  let assert app.Continue(asking) = app.update(start(), app.KeyPress(Char("q")))
   assert string.contains(app.view(asking).message, "Quit?")
-  let assert app.Quit(_) = app.update(asking, Char("y"))
+  let assert app.Quit(_) = app.update(asking, app.KeyPress(Char("y")))
 }
 
 pub fn declining_the_quit_carries_on_test() {
-  let assert app.Continue(asking) = app.update(start(), Char("q"))
-  let assert app.Continue(staying) = app.update(asking, Char("n"))
+  let assert app.Continue(asking) = app.update(start(), app.KeyPress(Char("q")))
+  let assert app.Continue(staying) = app.update(asking, app.KeyPress(Char("n")))
   assert !string.contains(app.view(staying).message, "Quit?")
   // And the game is still playable afterwards.
   assert app.view(press(staying, [Char("1")])).selection == Some(Cascade(0))
@@ -127,7 +127,7 @@ pub fn declining_the_quit_carries_on_test() {
 
 /// Ctrl-C is the one key that does not stop to ask.
 pub fn ctrl_c_quits_at_once_test() {
-  let assert app.Quit(_) = app.update(start(), Ctrl("c"))
+  let assert app.Quit(_) = app.update(start(), app.KeyPress(Ctrl("c")))
 }
 
 // --- Other -----------------------------------------------------------------
@@ -230,13 +230,13 @@ fn start_of_game_two() -> app.State {
 // --- Keeping score ---------------------------------------------------------
 
 pub fn walking_away_from_an_untouched_game_is_not_a_loss_test() {
-  let assert app.Quit(final) = app.update(start(), Ctrl("c"))
+  let assert app.Quit(final) = app.update(start(), app.KeyPress(Ctrl("c")))
   assert app.record(final) == stats.empty()
 }
 
 pub fn abandoning_a_game_in_progress_counts_as_a_loss_test() {
   let played = press(start(), [Char("1"), Char("a")])
-  let assert app.Quit(final) = app.update(played, Ctrl("c"))
+  let assert app.Quit(final) = app.update(played, app.KeyPress(Ctrl("c")))
   assert app.record(final).played == 1
   assert app.record(final).won == 0
   assert app.record(final).streak == 0
@@ -252,7 +252,7 @@ pub fn dealing_a_new_game_counts_the_one_left_behind_test() {
 /// A game is counted once, however many times it is left.
 pub fn a_game_is_not_counted_twice_test() {
   let played = press(start(), [Char("1"), Char("a"), Char("n")])
-  let assert app.Quit(final) = app.update(played, Ctrl("c"))
+  let assert app.Quit(final) = app.update(played, app.KeyPress(Ctrl("c")))
   assert app.record(final).played == 1
 }
 
@@ -285,4 +285,90 @@ fn key_for(place: Location) -> Key {
     // Space sends whatever is in hand to its own suit's foundation.
     Foundation(_) -> Space
   }
+}
+
+// --- Hints and finishing ---------------------------------------------------
+
+/// `update` does not search; it asks to be searched for, and the loop obliges.
+/// That is what keeps it pure and the game responsive while thinking.
+pub fn h_asks_for_a_search_rather_than_running_one_test() {
+  let assert app.Think(thinking, _generation, asked_about, budget) =
+    app.update(start(), app.KeyPress(Char("h")))
+  assert budget > 0
+  assert fixture.columns(asked_about)
+    == fixture.columns(app.view(start()).board)
+  assert string.contains(app.view(thinking).message, "Looking for a move")
+}
+
+pub fn a_hint_names_a_move_test() {
+  let assert app.Think(thinking, generation, asked_about, budget) =
+    app.update(start(), app.KeyPress(Char("h")))
+  let assert app.Continue(hinted) =
+    app.update(
+      thinking,
+      app.Searched(generation, solver.solve(asked_about, budget)),
+    )
+
+  let said = app.view(hinted).message
+  assert string.starts_with(said, "Try ")
+  assert string.contains(said, " to ")
+}
+
+/// A search that finds nothing says so rather than sitting silent.
+pub fn a_hint_admits_defeat_test() {
+  let assert app.Think(thinking, generation, _, _) =
+    app.update(start(), app.KeyPress(Char("h")))
+  let assert app.Continue(answered) =
+    app.update(thinking, app.Searched(generation, solver.Unsolved(99, True)))
+  assert string.contains(app.view(answered).message, "No way through")
+}
+
+/// The board can move on while a search runs. Its answer is then about a
+/// position that no longer exists, and must be thrown away.
+pub fn an_answer_about_a_stale_board_is_dropped_test() {
+  let assert app.Think(thinking, generation, _, _) =
+    app.update(start(), app.KeyPress(Char("h")))
+  let moved = press(thinking, [Char("1"), Char("a")])
+
+  let assert app.Continue(after) =
+    app.update(moved, app.Searched(generation, solver.Unsolved(99, True)))
+  assert !string.contains(app.view(after).message, "No way through")
+  assert app.view(after).moves == app.view(moved).moves
+}
+
+pub fn asking_twice_does_not_start_two_searches_test() {
+  let assert app.Think(thinking, _, _, _) =
+    app.update(start(), app.KeyPress(Char("h")))
+  let assert app.Continue(again) = app.update(thinking, app.KeyPress(Char("h")))
+  assert app.view(again).message == "Still thinking."
+}
+
+/// The real solver, on a real deal, played through to a win by the game.
+pub fn finishing_plays_the_game_out_and_records_the_win_test() {
+  let assert app.Think(thinking, generation, asked_about, budget) =
+    app.update(start(), app.KeyPress(Char("!")))
+  let assert app.Continue(finished) =
+    app.update(
+      thinking,
+      app.Searched(generation, solver.solve(asked_about, budget)),
+    )
+
+  assert app.view(finished).message == "Finished."
+  assert string.contains(string.join(app.screen(finished), "\n"), "You win")
+  assert app.record(finished)
+    == stats.Stats(played: 1, won: 1, streak: 1, best_streak: 1)
+}
+
+pub fn finishing_admits_when_it_cannot_test() {
+  let assert app.Think(thinking, generation, _, _) =
+    app.update(start(), app.KeyPress(Char("!")))
+  let assert app.Continue(answered) =
+    app.update(thinking, app.Searched(generation, solver.Unsolved(99, True)))
+  assert string.contains(app.view(answered).message, "could not find")
+}
+
+pub fn the_help_mentions_hints_test() {
+  let shown = app.screen(press(start(), [Char("?")])) |> string.join("\n")
+  assert string.contains(shown, "suggest a move")
+  assert string.contains(shown, "finish the game")
 }

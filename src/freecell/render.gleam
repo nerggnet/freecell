@@ -181,7 +181,7 @@ fn status(view: View) -> String {
 }
 
 fn hints() -> String {
-  margin <> "1-8 col · asdf cells · space home · u undo · q quit"
+  margin <> "1-8 · asdf · u undo · h hint · ? keys · q quit"
 }
 
 // --- Slots -----------------------------------------------------------------
@@ -301,6 +301,8 @@ pub fn help(record: Stats, options: Options) -> List(String) {
       key_line("esc", "put the card back"),
       key_line("u   r", "undo, redo"),
       key_line("n", "deal a new game"),
+      key_line("h", "suggest a move, if there is one"),
+      key_line("!", "finish the game, if it can be finished"),
       key_line("p", "auto-play to the foundations on/off"),
       key_line("?", "this screen"),
       key_line("q", "quit"),

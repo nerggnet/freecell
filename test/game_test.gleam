@@ -4,8 +4,8 @@ import freecell/deck
 import freecell/game
 import freecell/location.{Cascade, Free}
 import freecell/rules.{CascadeNeedsNextRankDown, Move}
+import freecell/solver
 import gleam/list
-import solver
 
 pub fn a_new_game_is_the_deal_untouched_test() {
   let fresh = game.new(1)

@@ -2,6 +2,7 @@
 
 import freecell/deck
 import freecell/render
+import freecell/solver
 import freecell/stats.{type Stats}
 import freecell/tui/ansi
 import freecell/tui/app
@@ -48,13 +49,24 @@ fn start(args: List(String)) -> Nil {
 /// state so the record can be written after the screen is restored.
 fn loop(state: app.State) -> app.State {
   draw(state)
-  case term.read_key() {
-    Error(Nil) -> state
-    Ok(pressed) ->
-      case app.update(state, pressed) {
-        app.Quit(final) -> final
-        app.Continue(next) -> loop(next)
-      }
+  case term.next_event() {
+    term.Gone -> state
+    term.Pressed(pressed) -> advance(state, app.KeyPress(pressed))
+    term.Delivered(#(generation, outcome)) ->
+      advance(state, app.Searched(generation, outcome))
+  }
+}
+
+fn advance(state: app.State, input: app.Input) -> app.State {
+  case app.update(state, input) {
+    app.Quit(final) -> final
+    app.Continue(next) -> loop(next)
+    // Searching can take seconds, so it happens on another process and comes
+    // back as an event; the loop keeps taking keys meanwhile.
+    app.Think(next, generation, board, budget) -> {
+      term.in_background(fn() { #(generation, solver.solve(board, budget)) })
+      loop(next)
+    }
   }
 }
 
