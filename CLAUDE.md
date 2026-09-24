@@ -99,10 +99,11 @@ be played through to a win.
 (916 of the first 1,000, measured). The rest it gives up on, so a hint must be
 free to say it found nothing — but that is the search giving up, not the deal
 being unsolvable. Of the 32,000 numbered deals only #11982 has no solution.
-Raising the budget converts most failures: of 30 sampled failures, 10 fall to
-60,000 and 20 to 200,000, deals 4 and 617 among them. Budget is therefore a
-real lever on hint quality, and cheap to pull, because the search runs off the
-event loop.
+Raising the budget converts most failures: **at 200,000 positions it solves
+293 of the first 300 deals (97.7%)**, deals 4 and 617 among them. Budget is
+therefore a real lever on hint quality, and cheap to pull because the search
+runs off the event loop — the cost is latency, roughly 22 seconds on a deal it
+ends up failing. Deals 114, 117, 124, 129, 235, 286 and 295 resist even that.
 
 The replay tests use deals 1, 3, 7, 8, 14 and 15 because they solve in about
 10 ms each, keeping the suite fast — not because other deals are impossible.
