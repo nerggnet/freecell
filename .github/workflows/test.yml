@@ -9,6 +9,34 @@ on:
 
 jobs:
   test:
+    # Nothing we ship is native code — the executable is BEAM bytecode — so in
+    # principle one artefact runs anywhere OTP does. This matrix is here to
+    # find out where that stops being true, so fail-fast is off: one platform
+    # falling over must not hide what the others did.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          gleam-version: "1.18.1"
+          rebar3-version: "3"
+      - run: gleam deps download
+      - run: gleam test
+
+      # The packaged executable has to at least build and start everywhere we
+      # claim it runs. Invoked through escript rather than by its shebang,
+      # which Windows ignores.
+      - run: gleam export erlang-shipment
+      - run: escript scripts/package.escript build/erlang-shipment build/freecell
+      - run: escript build/freecell --version
+
+  format:
+    # Formatting is the same everywhere; checking it once is enough.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -17,7 +45,5 @@ jobs:
           otp-version: "29"
           gleam-version: "1.18.1"
           rebar3-version: "3"
-          # elixir-version: "1"
       - run: gleam deps download
-      - run: gleam test
       - run: gleam format --check src test
