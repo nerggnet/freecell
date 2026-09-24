@@ -136,7 +136,7 @@ pub fn ctrl_c_quits_at_once_test() {
 // --- Other -----------------------------------------------------------------
 
 pub fn n_deals_a_different_game_test() {
-  let next = press(start(), [Char("n")])
+  let next = press(start(), [Char("n"), Char("y")])
   assert app.game_number(next) != 1
   assert app.view(next).moves == 0
   assert app.view(next).selection == None
@@ -246,7 +246,7 @@ pub fn abandoning_a_game_in_progress_counts_as_a_loss_test() {
 }
 
 pub fn dealing_a_new_game_counts_the_one_left_behind_test() {
-  let dealt = press(start(), [Char("1"), Char("a"), Char("n")])
+  let dealt = press(start(), [Char("1"), Char("a"), Char("n"), Char("y")])
   assert app.record(dealt).played == 1
   assert app.record(dealt).won == 0
   assert app.game_number(dealt) != 1
@@ -254,7 +254,7 @@ pub fn dealing_a_new_game_counts_the_one_left_behind_test() {
 
 /// A game is counted once, however many times it is left.
 pub fn a_game_is_not_counted_twice_test() {
-  let played = press(start(), [Char("1"), Char("a"), Char("n")])
+  let played = press(start(), [Char("1"), Char("a"), Char("n"), Char("y")])
   let assert app.Quit(final) = app.update(played, app.KeyPress(Ctrl("c")))
   assert app.record(final).played == 1
 }
@@ -587,7 +587,7 @@ pub fn a_game_touched_by_relaxed_rules_stays_unrecorded_test() {
 }
 
 pub fn a_new_deal_keeps_the_rules_in_force_test() {
-  let dealt = press(press(start(), [Char("m")]), [Char("n")])
+  let dealt = press(press(start(), [Char("m")]), [Char("n"), Char("y")])
   assert app.mode(dealt) == rules.Relaxed
   assert app.view(dealt).carry == None
 }
@@ -596,7 +596,7 @@ pub fn a_new_deal_keeps_the_rules_in_force_test() {
 /// counts once more.
 pub fn a_fresh_standard_deal_counts_again_test() {
   let back = press(start(), [Char("1"), Char("a"), Char("m"), Char("m")])
-  let dealt = press(back, [Char("n")])
+  let dealt = press(back, [Char("n"), Char("y")])
   assert app.mode(dealt) == rules.Standard
 
   let played = press(dealt, [Char("1"), Char("a")])
@@ -609,5 +609,36 @@ pub fn a_fresh_standard_deal_counts_again_test() {
 pub fn a_new_deal_starts_the_clock_again_test() {
   let later = app.at(press(start(), [Char("1"), Char("a")]), 90_000_000)
   assert app.view(later).elapsed == 90
-  assert app.view(press(later, [Char("n")])).elapsed == 0
+  assert app.view(press(later, [Char("n"), Char("y")])).elapsed == 0
+}
+
+// --- Confirming a new deal -------------------------------------------------
+
+/// Dealing a new game throws the current one away and counts it as given up,
+/// so it asks first — the same as quitting does.
+pub fn n_asks_before_dealing_a_new_game_test() {
+  let played = press(start(), [Char("1"), Char("a")])
+
+  let asking = press(played, [Char("n")])
+  assert string.contains(app.view(asking).message, "Abandon this game?")
+  // Nothing has happened yet.
+  assert app.game_number(asking) == 1
+  assert app.view(asking).moves == 1
+  assert app.record(asking) == stats.empty()
+
+  let dealt = press(asking, [Char("y")])
+  assert app.game_number(dealt) != 1
+  assert app.view(dealt).moves == 0
+}
+
+pub fn declining_the_new_deal_leaves_the_game_alone_test() {
+  let played = press(start(), [Char("1"), Char("a")])
+  let staying = press(played, [Char("n"), Char("z")])
+
+  assert app.game_number(staying) == 1
+  assert app.view(staying).moves == 1
+  assert !string.contains(app.view(staying).message, "Abandon")
+  // And the game is still playable afterwards.
+  assert app.view(press(staying, [Char("2")])).selection
+    == Some(render.Selection(Cascade(1), 1))
 }

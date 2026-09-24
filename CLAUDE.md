@@ -86,6 +86,18 @@ width and never padded around**, because an escape sequence has length but no
 width — and `A♠` is two columns but four bytes. Measure with `string.length`
 (grapheme-aware), never byte size.
 
+That rule has been broken once, so it is worth restating: `two_groups` worked
+out its gap by measuring the joined slot strings, which are painted. The
+moment a free cell or a foundation held a card, the escapes counted as width,
+the gap collapsed from eight columns to one, and the foundations' faces slid
+out from under their own borders — the last box appeared to have lost its
+right edge. Gaps are now derived from slot counts. **If you need a width,
+compute it from the layout, never from a string that might be painted.**
+
+`colour_changes_nothing_but_colour_test` now renders a board with cards in the
+cells and on the foundations as well as a fresh deal. An empty board paints
+nothing in those rows, which is exactly how the above went unseen.
+
 The header shows `rules.carrying_capacity` — cells plus one, doubled per empty
 column — because it is what answers "why will this not move?". It deliberately
 shows the figure for an *occupied* destination; moving into an empty column

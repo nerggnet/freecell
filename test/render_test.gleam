@@ -77,13 +77,28 @@ pub fn no_line_carries_trailing_blanks_test() {
 
 /// Colour must be decoration only: strip the escape sequences and what is left
 /// has to be the plain rendering, character for character.
+///
+/// One of these boards has cards in the free cells and on the foundations, and
+/// that is the point. A fresh deal paints nothing in those rows, so a gap that
+/// collapsed as soon as a slot was painted went unseen — the escape sequences
+/// were being measured as width.
 pub fn colour_changes_nothing_but_colour_test() {
   let coloured = Options(colour: True, suits: Symbols)
-  let plain = render.frame(view_of(1), render.plain())
-  let painted = render.frame(view_of(1), coloured)
 
-  assert painted != plain
-  assert list.map(painted, strip_escapes) == plain
+  list.each([view_of(1), view_on(furnished())], fn(view) {
+    let plain = render.frame(view, render.plain())
+    let painted = render.frame(view, coloured)
+
+    assert painted != plain
+    assert list.map(painted, strip_escapes) == plain
+  })
+}
+
+/// A board with something in every kind of slot.
+fn furnished() -> board.Board {
+  fixture.board_from(["KS QH", "2D", "", "", "", "", "", ""])
+  |> fixture.with_cells(["2C", "", "TH", ""])
+  |> fixture.with_foundations([#(card.Clubs, 3), #(card.Hearts, 1)])
 }
 
 pub fn letters_mode_avoids_symbols_test() {

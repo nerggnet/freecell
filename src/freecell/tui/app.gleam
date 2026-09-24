@@ -22,6 +22,7 @@ import gleam/option.{type Option, None, Some}
 pub type Mode {
   Playing
   ConfirmQuit
+  ConfirmNew
   Help
 }
 
@@ -182,6 +183,8 @@ pub fn view(state: State) -> View {
   case state.mode {
     ConfirmQuit ->
       View(..base, message: "Quit? y to quit, anything else to stay.")
+    ConfirmNew ->
+      View(..base, message: "Abandon this game? y to deal a new one.")
     _ -> base
   }
 }
@@ -198,6 +201,7 @@ fn pressed_key(state: State, pressed: Key) -> Step {
     // Any key dismisses the help, so nobody has to guess how to leave it.
     Help -> Continue(State(..state, mode: Playing))
     ConfirmQuit -> answer_quit(state, pressed)
+    ConfirmNew -> answer_new(state, pressed)
     Playing -> play(state, pressed)
   }
 }
@@ -205,6 +209,15 @@ fn pressed_key(state: State, pressed: Key) -> Step {
 fn answer_quit(state: State, pressed: Key) -> Step {
   case pressed {
     Char("y") | Char("Y") -> Quit(give_up(state))
+    _ -> Continue(State(..state, mode: Playing, message: ""))
+  }
+}
+
+/// Dealing a new game throws the current one away, and counts it as given up,
+/// so it asks first — the same as quitting.
+fn answer_new(state: State, pressed: Key) -> Step {
+  case pressed {
+    Char("y") | Char("Y") -> Continue(deal_next(State(..state, mode: Playing)))
     _ -> Continue(State(..state, mode: Playing, message: ""))
   }
 }
@@ -221,7 +234,7 @@ fn play(state: State, pressed: Key) -> Step {
     Char("!") -> think(state, AFinish)
     Char("u") -> Continue(undo(state))
     Char("r") -> Continue(redo(state))
-    Char("n") -> Continue(deal_next(state))
+    Char("n") -> Continue(State(..state, mode: ConfirmNew))
     Char("R") -> Continue(restart(state))
     Escape | Backspace ->
       Continue(State(..state, selection: None, held: None, message: ""))

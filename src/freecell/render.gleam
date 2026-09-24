@@ -248,10 +248,26 @@ fn picked(view: View, place: Location) -> Bool {
 }
 
 /// Free cells on the left, foundations hard against the right edge.
+///
+/// The gap is worked out from how many slots there are, never by measuring the
+/// strings: a painted slot carries escape sequences that have length but no
+/// width, and measuring those collapses the gap and drags the right-hand group
+/// out from under its own borders.
 fn two_groups(left: List(String), right: List(String)) -> String {
-  let left_text = string.join(left, holder_gap)
-  let right_text = string.join(right, holder_gap)
-  margin <> spread(left_text, right_text, board_width - string.length(margin))
+  let space =
+    board_width
+    - string.length(margin)
+    - group_width(list.length(left))
+    - group_width(list.length(right))
+
+  margin
+  <> string.join(left, holder_gap)
+  <> string.repeat(" ", int.max(space, 1))
+  <> string.join(right, holder_gap)
+}
+
+fn group_width(slots: Int) -> Int {
+  slots * slot_width + { slots - 1 } * string.length(holder_gap)
 }
 
 // --- Cascades --------------------------------------------------------------
