@@ -122,4 +122,8 @@ under 100ms, though a few — game 617 among them — defeat it, which is why a
 hint is allowed to say it cannot find one.
 
 Searching runs on its own process and its result arrives as one more event the
-loop already waits for, so the game keeps taking keys while it thinks.
+loop already waits for, so the game keeps taking keys while it thinks. The
+same wait has a deadline, so the loop also comes round on its own a few times
+a second: that is how a resize and the ticking clock are noticed with nobody
+touching the keyboard. A frame identical to the one already on screen is not
+painted again, so idling costs nothing.

@@ -35,13 +35,16 @@ fn start(args: List(String)) -> Nil {
       term.write(ansi.enter_full_screen() <> ansi.hide_cursor())
       let seed = starting_seed(args)
       let finished =
-        loop(app.new(
-          starting_game(args, seed),
-          seed,
-          chosen_options(args),
-          load_record(),
-          term.now(),
-        ))
+        loop(
+          nothing_drawn,
+          app.new(
+            starting_game(args, seed),
+            seed,
+            chosen_options(args),
+            load_record(),
+            term.now(),
+          ),
+        )
       // Reached on quit and on stdin closing, so the terminal is always handed
       // back the way it was found.
       term.write(ansi.show_cursor() <> ansi.leave_full_screen())
@@ -52,15 +55,40 @@ fn start(args: List(String)) -> Nil {
 
 /// Runs until the player quits or stdin closes, and hands back the final
 /// state so the record can be written after the screen is restored.
-fn loop(state: app.State) -> app.State {
+/// How long to wait before looking around of our own accord. Frequent enough
+/// that a resize and the ticking clock feel immediate, and free when nothing
+/// has changed, because an identical frame is not painted again.
+const tick_ms = 250
+
+/// What is currently on the screen, so a frame that would look the same is not
+/// painted a second time.
+type Shown {
+  Shown(size: #(Int, Int), lines: List(String))
+}
+
+const nothing_drawn = Shown(size: #(0, 0), lines: [])
+
+fn loop(shown: Shown, state: app.State) -> app.State {
   // The clock lives out here, so the game itself stays a pure function of what
   // it is told.
-  draw(app.at(state, term.now()))
-  case term.next_event() {
-    term.Gone -> state
-    term.Pressed(pressed) -> react(state, app.KeyPress(pressed))
+  let ticking = app.at(state, term.now())
+  let wanted = Shown(term.size(), app.screen(ticking))
+  let shown = case wanted == shown {
+    True -> shown
+    False -> {
+      paint(wanted)
+      wanted
+    }
+  }
+
+  case term.next_event(tick_ms) {
+    // Nothing happened; go round again in case the terminal or the clock has
+    // moved on underneath us.
+    term.Tick -> loop(shown, ticking)
+    term.Gone -> ticking
+    term.Pressed(pressed) -> react(shown, ticking, app.KeyPress(pressed))
     term.Delivered(#(generation, outcome)) ->
-      react(state, app.Searched(generation, outcome))
+      react(shown, ticking, app.Searched(generation, outcome))
   }
 }
 
@@ -68,19 +96,19 @@ fn loop(state: app.State) -> app.State {
 /// Waiting for a key can take as long as the player likes, and a keypress that
 /// resets the clock has to reset it to now, not to whenever the board was last
 /// painted.
-fn react(state: app.State, input: app.Input) -> app.State {
-  advance(app.at(state, term.now()), input)
+fn react(shown: Shown, state: app.State, input: app.Input) -> app.State {
+  advance(shown, app.at(state, term.now()), input)
 }
 
-fn advance(state: app.State, input: app.Input) -> app.State {
+fn advance(shown: Shown, state: app.State, input: app.Input) -> app.State {
   case app.update(state, input) {
     app.Quit(final) -> final
-    app.Continue(next) -> loop(next)
+    app.Continue(next) -> loop(shown, next)
     // Searching can take seconds, so it happens on another process and comes
     // back as an event; the loop keeps taking keys meanwhile.
     app.Think(next, generation, board, budget) -> {
       term.in_background(fn() { #(generation, solver.solve(board, budget)) })
-      loop(next)
+      loop(shown, next)
     }
   }
 }
@@ -102,13 +130,14 @@ fn save_record(state: app.State) -> Nil {
   }
 }
 
-/// Paint a frame, centred in whatever the terminal is now.
+/// Paint a frame, centred in whatever size the terminal now is.
 ///
-/// The size is read fresh every time rather than watched for, so a resize
-/// takes effect on the next keypress.
-fn draw(state: app.State) -> Nil {
-  let #(columns, rows) = term.size()
-  let lines = app.screen(state)
+/// The size is read fresh each time round the loop rather than watched for
+/// with a signal handler, and the loop comes round on its own every tick, so a
+/// resize is picked up whether or not anyone is pressing keys.
+fn paint(frame: Shown) -> Nil {
+  let #(columns, rows) = frame.size
+  let lines = frame.lines
   let indent =
     string.repeat(" ", int.max({ columns - render.board_width } / 2, 0))
   let above = int.max({ rows - list.length(lines) } / 2, 0)

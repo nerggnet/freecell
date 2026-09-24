@@ -47,6 +47,8 @@ pub type Event(value) {
   Pressed(key: key.Key)
   /// A result from work handed to `in_background`.
   Delivered(value: value)
+  /// The deadline passed with nothing else to report.
+  Tick
   /// Standard input closed.
   Gone
 }
@@ -55,20 +57,22 @@ pub type Event(value) {
 type Incoming(value) {
   IncomingByte(value: Int)
   IncomingValue(value: value)
+  IncomingTick
   IncomingClosed
 }
 
 @external(erlang, "freecell_ffi", "await_event")
-fn ffi_await_event() -> Incoming(value)
+fn ffi_await_event(timeout: Int) -> Incoming(value)
 
 /// Run `work` elsewhere and deliver its result to the loop as an event.
 @external(erlang, "freecell_ffi", "spawn_search")
 pub fn in_background(work: fn() -> value) -> Nil
 
 /// Wait for the next thing to happen, assembling escape sequences as they
-/// arrive.
-pub fn next_event() -> Event(value) {
-  case ffi_await_event() {
+/// arrive. Gives up after `timeout` milliseconds and reports a `Tick`.
+pub fn next_event(timeout: Int) -> Event(value) {
+  case ffi_await_event(timeout) {
+    IncomingTick -> Tick
     IncomingClosed -> Gone
     IncomingValue(value) -> Delivered(value)
     IncomingByte(27) ->

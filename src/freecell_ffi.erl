@@ -9,7 +9,7 @@
 -export([start_raw/0, read_byte/0, term_size/0, write/1,
          await_input/0, read_input/1, arguments/0, now_micros/0,
          read_file/1, write_file/2, stats_path/0, version/0,
-         spawn_search/1, await_event/0]).
+         spawn_search/1, await_event/1]).
 
 start_raw() ->
     case shell:start_interactive({noshell, raw}) of
@@ -78,12 +78,16 @@ spawn_search(Fun) ->
     spawn(fun() -> Owner ! {freecell_search, Fun()} end),
     nil.
 
-%% Block until either a key or a search result arrives.
-await_event() ->
+%% Wait for a key, a search result, or the tick deadline.
+%%
+%% The tick is what lets the game notice things nobody pressed a key about: the
+%% terminal being resized, and the clock moving on.
+await_event(Timeout) ->
     receive
         freecell_input_closed -> incoming_closed;
         {freecell_key, Byte} -> {incoming_byte, Byte};
         {freecell_search, Value} -> {incoming_value, Value}
+    after Timeout -> incoming_tick
     end.
 
 %% Wait up to Timeout milliseconds for a key.
