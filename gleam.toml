@@ -1,5 +1,5 @@
 name = "freecell"
-version = "1.2.0"
+version = "1.2.1"
 
 description = "FreeCell for the terminal"
 licences = ["MIT"]
