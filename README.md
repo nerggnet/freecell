@@ -3,7 +3,7 @@
 FreeCell for the terminal, written in Gleam and running on the BEAM.
 
 ```
-  FreeCell #617                                 moves 24
+  FreeCell #617                          2:14 · moves 24
 
    a    s    d    f                  ♣    ♦    ♥    ♠
   [5♥] [  ] [  ] [K♣]               [A♣] [3♦] [  ] [2♠]
@@ -51,6 +51,7 @@ Moves take two keys: one to pick a card up, one to say where it goes.
 | `esc` | put the card back |
 | `u` / `r` | undo / redo |
 | `n` | deal a new game |
+| `R` | start this deal again |
 | `h` | suggest a move, if there is one |
 | `!` | finish the game, if it can be finished |
 | `p` | auto-play to the foundations on/off |
@@ -65,7 +66,10 @@ automatically; `p` turns that off.
 
 Games are numbered as in Microsoft FreeCell, so `--game 617` deals the same
 cards here as anywhere else. Wins and losses are kept in
-`$XDG_DATA_HOME/freecell/stats`, or `~/.local/share/freecell/stats`.
+`$XDG_DATA_HOME/freecell/stats`, or `~/.local/share/freecell/stats`, and
+`freecell --stats` prints your record without dealing anything. Starting a
+deal over with `R` counts as giving it up, so a streak cannot be kept alive by
+restarting whenever one turns awkward.
 
 ## How it is put together
 

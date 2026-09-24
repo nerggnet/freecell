@@ -16,7 +16,7 @@ import gleam/option.{None, Some}
 import gleam/string
 
 fn start() -> app.State {
-  app.new(1, 0, render.plain(), stats.empty())
+  app.new(1, 0, render.plain(), stats.empty(), 0)
 }
 
 /// Feed keys in, expecting the game to keep running.
@@ -217,7 +217,7 @@ pub fn p_toggles_auto_play_test() {
 /// With auto-play off the ace of spades that game 2 deals face up stays put.
 pub fn auto_play_off_leaves_cards_alone_test() {
   let manual =
-    app.new(2, 0, render.plain(), stats.empty())
+    app.new(2, 0, render.plain(), stats.empty(), 0)
     |> fn(state) { press(state, [Char("p")]) }
   let moved = press(manual, [Char("2"), Char("a")])
   assert fixture.foundations(app.view(moved).board) == "C:0 D:0 H:0 S:0"
@@ -227,7 +227,7 @@ pub fn auto_play_off_leaves_cards_alone_test() {
 }
 
 fn start_of_game_two() -> app.State {
-  app.new(2, 0, render.plain(), stats.empty())
+  app.new(2, 0, render.plain(), stats.empty(), 0)
 }
 
 // --- Keeping score ---------------------------------------------------------
@@ -380,7 +380,7 @@ pub fn the_help_mentions_hints_test() {
 
 /// Game 251 deals Q♠ J♥ T♣ at the foot of column 3: a run of three.
 fn with_a_run() -> app.State {
-  app.new(251, 0, render.plain(), stats.empty())
+  app.new(251, 0, render.plain(), stats.empty(), 0)
 }
 
 pub fn a_column_is_picked_up_run_and_all_test() {
@@ -434,4 +434,46 @@ pub fn a_single_card_column_says_there_is_no_more_to_take_test() {
   let picked = press(start(), [Char("1"), Up])
   assert message(picked) == "Only one card can travel from there."
   assert app.view(picked).selection == Some(render.Selection(Cascade(0), 1))
+}
+
+// --- The clock and starting over -------------------------------------------
+
+/// Time is told to the game rather than read by it, which is what lets
+/// `update` stay a pure function of its inputs.
+pub fn the_clock_counts_from_the_deal_test() {
+  let fresh = start()
+  assert app.view(fresh).elapsed == 0
+  // Ninety seconds later, in microseconds.
+  assert app.view(app.at(fresh, 90_000_000)).elapsed == 90
+}
+
+pub fn restart_deals_the_same_game_again_test() {
+  let played = press(start(), [Char("1"), Char("a")])
+  assert app.view(played).moves == 1
+
+  let again = press(played, [Char("R")])
+  assert app.game_number(again) == 1
+  assert app.view(again).moves == 0
+  assert fixture.columns(app.view(again).board)
+    == fixture.columns(app.view(start()).board)
+  assert message(again) == "Dealt again."
+}
+
+pub fn restart_puts_the_clock_back_test() {
+  let later = app.at(press(start(), [Char("1"), Char("a")]), 60_000_000)
+  assert app.view(later).elapsed == 60
+  assert app.view(press(later, [Char("R")])).elapsed == 0
+}
+
+/// Restarting is giving up on the deal. Otherwise a streak could be kept alive
+/// indefinitely by starting over whenever one turned awkward.
+pub fn restart_counts_as_a_game_given_up_test() {
+  let again = press(start(), [Char("1"), Char("a"), Char("R")])
+  assert app.record(again).played == 1
+  assert app.record(again).won == 0
+  assert app.record(again).streak == 0
+}
+
+pub fn restarting_an_untouched_deal_costs_nothing_test() {
+  assert app.record(press(start(), [Char("R")])) == stats.empty()
 }

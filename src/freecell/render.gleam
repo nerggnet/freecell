@@ -61,6 +61,8 @@ pub type View {
     moves: Int,
     selection: Option(Selection),
     message: String,
+    /// Seconds since the deal.
+    elapsed: Int,
   )
 }
 
@@ -84,7 +86,7 @@ pub fn frame(view: View, options: Options) -> List(String) {
 
 fn title(view: View) -> String {
   let left = "FreeCell #" <> int.to_string(view.number)
-  let right = "moves " <> int.to_string(view.moves)
+  let right = clock(view.elapsed) <> " · moves " <> int.to_string(view.moves)
   margin <> spread(left, right, board_width - string.length(margin))
 }
 
@@ -304,6 +306,7 @@ pub fn help(record: Stats, options: Options) -> List(String) {
       key_line("up down", "take more or fewer cards"),
       key_line("u   r", "undo, redo"),
       key_line("n", "deal a new game"),
+      key_line("R", "start this deal again"),
       key_line("h", "suggest a move, if there is one"),
       key_line("!", "finish the game, if it can be finished"),
       key_line("p", "auto-play to the foundations on/off"),
@@ -318,6 +321,14 @@ pub fn help(record: Stats, options: Options) -> List(String) {
     ],
     string.trim_end,
   )
+}
+
+/// Minutes and seconds. Hours would need a wider header and nobody should be
+/// playing one deal that long.
+fn clock(seconds: Int) -> String {
+  int.to_string(seconds / 60)
+  <> ":"
+  <> string.pad_start(int.to_string(seconds % 60), 2, "0")
 }
 
 fn key_line(keys: String, meaning: String) -> String {

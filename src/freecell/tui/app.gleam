@@ -38,6 +38,10 @@ pub opaque type State {
     options: Options,
     record: Stats,
     thinking: Option(Wanted),
+    /// The clock is supplied from outside rather than read here, so that
+    /// deciding what a keypress does stays a pure function of its inputs.
+    started_at: Int,
+    now: Int,
     /// Bumped whenever the board changes, so an answer about a board that no
     /// longer exists can be recognised and dropped.
     generation: Int,
@@ -73,7 +77,13 @@ type Wanted {
 /// can be generous without the game becoming unresponsive.
 const search_budget = 20_000
 
-pub fn new(number: Int, seed: Int, options: Options, record: Stats) -> State {
+pub fn new(
+  number: Int,
+  seed: Int,
+  options: Options,
+  record: Stats,
+  now: Int,
+) -> State {
   State(
     game: game.new(number),
     selection: None,
@@ -86,7 +96,18 @@ pub fn new(number: Int, seed: Int, options: Options, record: Stats) -> State {
     counted: False,
     thinking: None,
     generation: 0,
+    started_at: now,
+    now: now,
   )
+}
+
+/// Tell the game what time it is. The loop does this before each frame.
+pub fn at(state: State, now: Int) -> State {
+  State(..state, now: now)
+}
+
+fn elapsed(state: State) -> Int {
+  int.max(state.now - state.started_at, 0) / 1_000_000
 }
 
 pub fn record(state: State) -> Stats {
@@ -120,6 +141,7 @@ pub fn view(state: State) -> View {
         Some(place) -> Some(Selection(place, cards_held(state)))
       },
       message: state.message,
+      elapsed: elapsed(state),
     )
   case state.mode {
     ConfirmQuit ->
@@ -163,6 +185,7 @@ fn play(state: State, pressed: Key) -> Step {
     Char("u") -> Continue(undo(state))
     Char("r") -> Continue(redo(state))
     Char("n") -> Continue(deal_next(state))
+    Char("R") -> Continue(restart(state))
     Escape | Backspace ->
       Continue(State(..state, selection: None, held: None, message: ""))
     Up -> Continue(take(state, 1))
@@ -296,6 +319,24 @@ fn deal_next(state: State) -> State {
       message: "",
       seed: seed,
       counted: False,
+    ),
+  )
+}
+
+/// Deal the same game again. Like walking away to a new one, this counts as a
+/// game given up: otherwise a streak could be kept alive indefinitely by
+/// restarting whenever a deal turned awkward.
+fn restart(state: State) -> State {
+  let counted = give_up(state)
+  changed(
+    State(
+      ..counted,
+      game: game.new(game.number(state.game)),
+      selection: None,
+      held: None,
+      message: "Dealt again.",
+      counted: False,
+      started_at: state.now,
     ),
   )
 }

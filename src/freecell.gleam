@@ -20,7 +20,11 @@ pub fn main() -> Nil {
   {
     True, _ -> io.println(usage())
     _, True -> io.println("freecell " <> term.version())
-    _, _ -> start(args)
+    _, _ ->
+      case list.contains(args, "--stats") {
+        True -> io.println(stats.summary(load_record()))
+        False -> start(args)
+      }
   }
 }
 
@@ -36,6 +40,7 @@ fn start(args: List(String)) -> Nil {
           seed,
           chosen_options(args),
           load_record(),
+          term.now(),
         ))
       // Reached on quit and on stdin closing, so the terminal is always handed
       // back the way it was found.
@@ -48,13 +53,23 @@ fn start(args: List(String)) -> Nil {
 /// Runs until the player quits or stdin closes, and hands back the final
 /// state so the record can be written after the screen is restored.
 fn loop(state: app.State) -> app.State {
-  draw(state)
+  // The clock lives out here, so the game itself stays a pure function of what
+  // it is told.
+  draw(app.at(state, term.now()))
   case term.next_event() {
     term.Gone -> state
-    term.Pressed(pressed) -> advance(state, app.KeyPress(pressed))
+    term.Pressed(pressed) -> react(state, app.KeyPress(pressed))
     term.Delivered(#(generation, outcome)) ->
-      advance(state, app.Searched(generation, outcome))
+      react(state, app.Searched(generation, outcome))
   }
+}
+
+/// Read the clock when the event arrives rather than when the frame was drawn.
+/// Waiting for a key can take as long as the player likes, and a keypress that
+/// resets the clock has to reset it to now, not to whenever the board was last
+/// painted.
+fn react(state: app.State, input: app.Input) -> app.State {
+  advance(app.at(state, term.now()), input)
 }
 
 fn advance(state: app.State, input: app.Input) -> app.State {
@@ -155,6 +170,7 @@ fn usage() -> String {
     --seed N      fix the shuffle that `n` draws new games from
     --ascii       write suits as C D H S instead of ♣ ♦ ♥ ♠
     --no-colour   no colour (also --no-color)
+    --stats       print your record and exit
     --version     print the version
     --help        this message
 

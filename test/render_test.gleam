@@ -14,11 +14,25 @@ const board_width = 55
 
 fn view_of(number: Int) -> View {
   let assert Ok(dealt) = board.new(deck.deal(number))
-  View(board: dealt, number: number, moves: 0, selection: None, message: "")
+  View(
+    board: dealt,
+    number: number,
+    moves: 0,
+    selection: None,
+    message: "",
+    elapsed: 0,
+  )
 }
 
 fn view_on(board: board.Board) -> View {
-  View(board: board, number: 1, moves: 0, selection: None, message: "")
+  View(
+    board: board,
+    number: 1,
+    moves: 0,
+    selection: None,
+    message: "",
+    elapsed: 0,
+  )
 }
 
 /// The whole screen for game 1, exactly. Any layout change has to be looked at
@@ -26,7 +40,7 @@ fn view_on(board: board.Board) -> View {
 pub fn game_one_renders_exactly_this_test() {
   let expected = [
     "",
-    "  FreeCell #1                                   moves 0",
+    "  FreeCell #1                            0:00 · moves 0",
     "",
     "   a    s    d    f                  ♣    ♦    ♥    ♠",
     "  [  ] [  ] [  ] [  ]               [  ] [  ] [  ] [  ]",
@@ -177,4 +191,22 @@ fn scan(chars: List(String), inside: Bool, kept: List(String)) -> String {
 
 fn is_letter(char: String) -> Bool {
   string.contains("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", char)
+}
+
+fn header_at(seconds: Int) -> String {
+  let lines = render.frame(View(..view_of(1), elapsed: seconds), render.plain())
+  let assert Ok(header) = lines |> list.drop(1) |> list.first
+  header
+}
+
+pub fn the_header_shows_a_clock_test() {
+  assert string.contains(header_at(0), "0:00")
+  // Seconds are padded, so the header does not jitter as it ticks.
+  assert string.contains(header_at(5), "0:05")
+  assert string.contains(header_at(90), "1:30")
+  assert string.contains(header_at(3599), "59:59")
+}
+
+pub fn the_clock_does_not_push_the_header_over_width_test() {
+  assert string.length(header_at(3599)) <= 55
 }
