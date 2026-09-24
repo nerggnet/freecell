@@ -317,13 +317,40 @@ pub fn a_hint_names_a_move_test() {
   assert string.contains(said, " to ")
 }
 
-/// A search that finds nothing says so rather than sitting silent.
-pub fn a_hint_admits_defeat_test() {
-  let assert app.Think(thinking, generation, _, _) =
+/// A first pass that finds nothing does not refuse; it looks harder. Almost
+/// every deal the quick look gives up on yields to a longer one, so refusing
+/// there would be telling the player something untrue.
+pub fn a_fruitless_first_look_escalates_test() {
+  let assert app.Think(thinking, generation, _, first) =
     app.update(start(), app.KeyPress(Char("h")))
-  let assert app.Continue(answered) =
+
+  let assert app.Think(harder, _, _, second) =
     app.update(thinking, app.Searched(generation, solver.Unsolved(99, True)))
+  assert second > first
+  assert string.contains(app.view(harder).message, "looking harder")
+}
+
+/// Only once the longer look has also come back empty is the player told there
+/// is nothing to find.
+pub fn a_hint_admits_defeat_after_looking_harder_test() {
+  let assert app.Continue(answered) = exhaust(start(), Char("h"))
   assert string.contains(app.view(answered).message, "No way through")
+}
+
+/// Drive a search through every stage, answering each with nothing found.
+fn exhaust(state: app.State, key: Key) -> app.Step {
+  case app.update(state, app.KeyPress(key)) {
+    app.Think(thinking, generation, _, _) -> keep_failing(thinking, generation)
+    other -> other
+  }
+}
+
+fn keep_failing(state: app.State, generation: Int) -> app.Step {
+  case app.update(state, app.Searched(generation, solver.Unsolved(99, True))) {
+    app.Think(again, next_generation, _, _) ->
+      keep_failing(again, next_generation)
+    other -> other
+  }
 }
 
 /// The board can move on while a search runs. Its answer is then about a
@@ -363,11 +390,37 @@ pub fn finishing_plays_the_game_out_and_records_the_win_test() {
 }
 
 pub fn finishing_admits_when_it_cannot_test() {
-  let assert app.Think(thinking, generation, _, _) =
-    app.update(start(), app.KeyPress(Char("!")))
-  let assert app.Continue(answered) =
-    app.update(thinking, app.Searched(generation, solver.Unsolved(99, True)))
+  let assert app.Continue(answered) = exhaust(start(), Char("!"))
   assert string.contains(app.view(answered).message, "could not find")
+}
+
+/// The board can still move on mid-escalation, and the longer look's answer
+/// has to be dropped just like the first one's.
+pub fn a_stale_answer_from_the_longer_look_is_dropped_test() {
+  let assert app.Think(thinking, generation, _, _) =
+    app.update(start(), app.KeyPress(Char("h")))
+  let assert app.Think(harder, second_generation, _, _) =
+    app.update(thinking, app.Searched(generation, solver.Unsolved(99, True)))
+
+  let moved = press(harder, [Char("1"), Char("a")])
+  let assert app.Continue(after) =
+    app.update(
+      moved,
+      app.Searched(second_generation, solver.Unsolved(99, True)),
+    )
+  assert !string.contains(app.view(after).message, "No way through")
+}
+
+/// A first look that succeeds answers straight away rather than grinding on.
+pub fn a_successful_first_look_does_not_escalate_test() {
+  let assert app.Think(thinking, generation, asked_about, budget) =
+    app.update(start(), app.KeyPress(Char("h")))
+  let assert app.Continue(hinted) =
+    app.update(
+      thinking,
+      app.Searched(generation, solver.solve(asked_about, budget)),
+    )
+  assert string.starts_with(app.view(hinted).message, "Try ")
 }
 
 pub fn the_help_mentions_hints_test() {

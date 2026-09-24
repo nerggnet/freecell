@@ -95,15 +95,22 @@ one without the other leaves half the board undrawable on plain terminals.
 underwrites the tests: the rules are checked by whether real numbered deals can
 be played through to a win.
 
-**At the in-game budget of 20,000 positions it solves about 92% of deals**
-(916 of the first 1,000, measured). The rest it gives up on, so a hint must be
-free to say it found nothing — but that is the search giving up, not the deal
-being unsolvable. Of the 32,000 numbered deals only #11982 has no solution.
-Raising the budget converts most failures: **at 200,000 positions it solves
-293 of the first 300 deals (97.7%)**, deals 4 and 617 among them. Budget is
-therefore a real lever on hint quality, and cheap to pull because the search
-runs off the event loop — the cost is latency, roughly 22 seconds on a deal it
-ends up failing. Deals 114, 117, 124, 129, 235, 286 and 295 resist even that.
+**Searches escalate.** `app` asks for 20,000 positions first, which answers
+about 92% of deals (916 of the first 1,000, measured) almost always inside a
+tenth of a second. When that finds nothing it asks again at 200,000, which
+reaches 97.7% (293 of the first 300), deals 4 and 617 among them. Only when the
+second look fails is the player told there is no way through.
+
+That ladder exists because a refusal would usually be a lie: of the 32,000
+numbered deals only #11982 has no solution at all. The cost is latency —
+roughly 22 seconds on a deal that ends up failing anyway — which is affordable
+only because the search runs off the event loop and the board stays playable
+throughout. Deals 114, 117, 124, 129, 235, 286 and 295 resist even 200,000.
+
+**"Progressive" here means escalating effort, not refining the answer.** Any
+solution's first move is a valid hint, so there is nothing better to converge
+on, and advice that mutated after the player had read it would be worse than
+advice that arrived a little later.
 
 The replay tests use deals 1, 3, 7, 8, 14 and 15 because they solve in about
 10 ms each, keeping the suite fast — not because other deals are impossible.

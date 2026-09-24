@@ -124,12 +124,15 @@ single escript. Pushing a `v*` tag builds and publishes one the same way, from
 
 `src/freecell/solver.gleam` is a best-first search. It powers `h` and `!`, and
 it underwrites the tests: the rules are checked against whether real numbered
-deals can actually be played through to a win. At the budget the game allows
-it, it cracks roughly nine deals in ten, most in well under 100ms, and gives
-up on the rest — which is why a hint is allowed to say it cannot find a move.
-Most of those give way to a larger budget, so the limit is the search rather
-than the deal: of the 32,000 numbered deals only #11982 has no solution at
-all.
+deals can actually be played through to a win.
+
+`h` looks twice. A quick pass answers about nine deals in ten inside a tenth
+of a second; where it finds nothing the game says so and keeps looking, with a
+budget ten times larger that reaches about 98%. Only when that comes back
+empty as well are you told there is no way through. The difference is worth
+the wait: of the 32,000 numbered deals only #11982 has no solution at all, so
+a refusal is nearly always the search giving up rather than the position being
+lost.
 
 Searching runs on its own process and its result arrives as one more event the
 loop already waits for, so the game keeps taking keys while it thinks. The

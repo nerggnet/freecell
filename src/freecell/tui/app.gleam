@@ -37,7 +37,7 @@ pub opaque type State {
     seed: Int,
     options: Options,
     record: Stats,
-    thinking: Option(Wanted),
+    thinking: Option(Thinking),
     /// The clock is supplied from outside rather than read here, so that
     /// deciding what a keypress does stays a pure function of its inputs.
     started_at: Int,
@@ -73,9 +73,24 @@ type Wanted {
   AFinish
 }
 
-/// Positions to look at before giving up. The search runs elsewhere, so this
-/// can be generous without the game becoming unresponsive.
-const search_budget = 20_000
+/// A search in flight: what it is for, and how hard it is looking.
+type Thinking {
+  Thinking(want: Wanted, budget: Int)
+}
+
+/// The first look. Answers about nine deals in ten, nearly always inside a
+/// tenth of a second.
+const first_look = 20_000
+
+/// The second look, for when the first finds nothing.
+///
+/// A deal the first pass gives up on is very rarely unwinnable — of the 32,000
+/// numbered deals only one has no solution at all — so refusing there would be
+/// telling the player something untrue. At this budget the search reaches
+/// about 98% of deals. It can take twenty seconds, which costs the easy cases
+/// nothing because they never get here, and costs the hard ones only waiting,
+/// because the search runs off the event loop and the game stays playable.
+const longer_look = 200_000
 
 pub fn new(
   number: Int,
@@ -398,24 +413,27 @@ fn place_for(character: String) -> Result(Location, Nil) {
 fn think(state: State, want: Wanted) -> Step {
   case state.thinking {
     Some(_) -> Continue(State(..state, message: "Still thinking."))
-    None -> {
-      let generation = state.generation + 1
-      Think(
-        State(
-          ..state,
-          generation: generation,
-          thinking: Some(want),
-          message: case want {
-            AHint -> "Looking for a move…"
-            AFinish -> "Looking for a way to finish…"
-          },
-        ),
-        generation,
-        game.board(state.game),
-        search_budget,
-      )
-    }
+    None ->
+      look(state, want, first_look, case want {
+        AHint -> "Looking for a move…"
+        AFinish -> "Looking for a way to finish…"
+      })
   }
+}
+
+fn look(state: State, want: Wanted, budget: Int, message: String) -> Step {
+  let generation = state.generation + 1
+  Think(
+    State(
+      ..state,
+      generation: generation,
+      thinking: Some(Thinking(want, budget)),
+      message: message,
+    ),
+    generation,
+    game.board(state.game),
+    budget,
+  )
 }
 
 fn searched(state: State, generation: Int, outcome: solver.Outcome) -> Step {
@@ -425,21 +443,35 @@ fn searched(state: State, generation: Int, outcome: solver.Outcome) -> Step {
     // position that no longer exists.
     False, _ -> Continue(settled)
     _, None -> Continue(settled)
-    True, Some(want) ->
-      Continue(case want, outcome {
-        AHint, solver.Solved(moves, _) -> suggest(settled, moves)
-        AFinish, solver.Solved(moves, _) -> finish(settled, moves)
-        AHint, solver.Unsolved(_, _) ->
-          State(
-            ..settled,
-            message: "No way through from here that I can see. Try undoing.",
-          )
-        AFinish, solver.Unsolved(_, _) ->
-          State(
-            ..settled,
-            message: "I could not find a way to finish this one.",
-          )
-      })
+    True, Some(Thinking(want, budget)) ->
+      case outcome {
+        solver.Solved(moves, _) ->
+          Continue(case want {
+            AHint -> suggest(settled, moves)
+            AFinish -> finish(settled, moves)
+          })
+        // Nothing yet. Look harder before saying there is nothing to find:
+        // most positions the first pass gives up on yield to a longer look,
+        // and the player is owed the difference between "no" and "not yet".
+        solver.Unsolved(_, _) ->
+          case budget < longer_look {
+            True ->
+              look(
+                settled,
+                want,
+                longer_look,
+                "Nothing obvious yet — looking harder…",
+              )
+            False ->
+              Continue(
+                State(..settled, message: case want {
+                  AHint ->
+                    "No way through from here that I can see. Try undoing."
+                  AFinish -> "I could not find a way to finish this one."
+                }),
+              )
+          }
+      }
   }
 }
 
