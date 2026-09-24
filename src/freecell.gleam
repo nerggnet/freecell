@@ -13,9 +13,13 @@ import gleam/string
 
 pub fn main() -> Nil {
   let args = term.arguments()
-  case list.contains(args, "--help") || list.contains(args, "-h") {
-    True -> io.println(usage())
-    False -> start(args)
+  case
+    list.contains(args, "--help") || list.contains(args, "-h"),
+    list.contains(args, "--version") || list.contains(args, "-V")
+  {
+    True, _ -> io.println(usage())
+    _, True -> io.println("freecell " <> term.version())
+    _, _ -> start(args)
   }
 }
 
@@ -133,12 +137,13 @@ fn flag_value(args: List(String), flag: String) -> Result(Int, Nil) {
 fn usage() -> String {
   "freecell — a FreeCell game for the terminal
 
-  ./run.sh [options]
+  freecell [options]
 
     --game N      deal Microsoft FreeCell game number N (1-32000)
     --seed N      fix the shuffle that `n` draws new games from
     --ascii       write suits as C D H S instead of ♣ ♦ ♥ ♠
     --no-colour   no colour (also --no-color)
+    --version     print the version
     --help        this message
 
   Press ? in the game for the keys."

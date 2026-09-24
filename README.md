@@ -18,15 +18,27 @@ FreeCell for the terminal, written in Gleam and running on the BEAM.
   1-8 col · asdf cells · space home · u undo · q quit
 ```
 
+## Installing
+
+Download `freecell` from the [latest
+release](https://github.com/nerggnet/freecell/releases/latest):
+
+```sh
+curl -LO https://github.com/nerggnet/freecell/releases/latest/download/freecell
+chmod +x freecell
+./freecell
+```
+
+One file, no installer. It needs Erlang/OTP 26 or later on the machine that
+runs it, but not Gleam and not this repository.
+
 ## Playing
 
 ```sh
-./run.sh                # a game at random
-./run.sh --game 617     # a particular deal
-./run.sh --help         # all the options
+./freecell              # a game at random
+./freecell --game 617   # a particular deal
+./freecell --help       # all the options
 ```
-
-Needs Gleam and Erlang/OTP 26 or later.
 
 Moves take two keys: one to pick a card up, one to say where it goes.
 
@@ -67,6 +79,7 @@ it can be tested without a terminal anywhere in sight.
 | `tui/key`, `tui/app` | keys, and what each one does — still pure |
 | `tui/term`, `tui/ansi`, `freecell_ffi.erl` | the only parts that touch the terminal |
 | `freecell` | set the terminal up, run the loop, put it back |
+| `freecell_escript.erl` | entry point for the packaged executable |
 
 Gleam has no terminal library, so raw keyboard input goes through a small
 Erlang module. Keypresses are read by a dedicated process and delivered as
@@ -74,14 +87,23 @@ messages, which is what makes it possible to tell a bare `esc` from the start
 of an arrow key's escape sequence.
 
 **`run.sh` exists for a reason.** It sets `ERL_FLAGS=+Bc`; without it the
-BEAM's break handler swallows Ctrl-C and paints its menu over the board.
+BEAM's break handler swallows Ctrl-C and paints its menu over the board. The
+packaged executable bakes the same flag into its emulator arguments, so there
+is nothing for a packager to forget — note that the `entrypoint.sh` which
+`gleam export erlang-shipment` generates does *not* set it, and has the bug.
 
 ## Development
 
 ```sh
-gleam test    # the lot, in about a second
+./run.sh --game 1        # play without packaging
+gleam test               # the lot, in about a second
 gleam format src test
+./package.sh             # build build/freecell
 ```
+
+`package.sh` exports an Erlang shipment and wraps every compiled module into a
+single escript. Pushing a `v*` tag builds and publishes one the same way, from
+`.github/workflows/release.yml`.
 
 `test/solver.gleam` is a best-first search that ships with nothing. It exists
 so the rules can be checked against the only standard that really matters:

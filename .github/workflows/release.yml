@@ -1,0 +1,36 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          gleam-version: "1.18.1"
+          rebar3-version: "3"
+      - run: gleam deps download
+      # Nothing ships that does not pass its tests.
+      - run: gleam test
+      - run: ./package.sh build/freecell
+      - name: Check the executable runs
+        run: ./build/freecell --version
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" build/freecell \
+            --title "freecell $GITHUB_REF_NAME" \
+            --notes 'One self-contained executable. It needs Erlang/OTP 26 or later on the machine that runs it, but not Gleam.
+
+              curl -LO https://github.com/nerggnet/freecell/releases/download/'"$GITHUB_REF_NAME"'/freecell
+              chmod +x freecell
+              ./freecell'

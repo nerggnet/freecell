@@ -106,3 +106,7 @@ pub fn read_file(path: String) -> Result(String, Nil)
 
 @external(erlang, "freecell_ffi", "write_file")
 pub fn write_file(path: String, contents: String) -> Result(Nil, Nil)
+
+/// The version this build was made from.
+@external(erlang, "freecell_ffi", "version")
+pub fn version() -> String

@@ -8,7 +8,7 @@
 
 -export([start_raw/0, read_byte/0, term_size/0, write/1,
          await_input/0, read_input/1, arguments/0, now_micros/0,
-         read_file/1, write_file/2, stats_path/0]).
+         read_file/1, write_file/2, stats_path/0, version/0]).
 
 start_raw() ->
     case shell:start_interactive({noshell, raw}) of
@@ -102,3 +102,12 @@ stats_path() ->
         _ -> filename:join(os:getenv("HOME", "."), ".local/share")
     end,
     unicode:characters_to_binary(filename:join([Base, "freecell", "stats"])).
+
+%% Read from the generated .app file rather than kept in step by hand, so a
+%% packaged executable reports the version it was actually built from.
+version() ->
+    _ = application:load(freecell),
+    case application:get_key(freecell, vsn) of
+        {ok, Vsn} -> unicode:characters_to_binary(Vsn);
+        _ -> <<"unknown">>
+    end.
