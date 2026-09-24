@@ -134,3 +134,13 @@ same wait has a deadline, so the loop also comes round on its own a few times
 a second: that is how a resize and the ticking clock are noticed with nobody
 touching the keyboard. A frame identical to the one already on screen is not
 painted again, so idling costs nothing.
+
+## Contributing
+
+Bug reports and patches are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+Numbered deals are reproducible, so a deal number and the keys you pressed is
+usually enough to reproduce a bug.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
