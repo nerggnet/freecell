@@ -9,6 +9,22 @@ pub fn red(text: String) -> String {
   escape <> "31m" <> text <> escape <> "39m"
 }
 
+pub fn black(text: String) -> String {
+  escape <> "30m" <> text <> escape <> "39m"
+}
+
+/// A card face: dark ink on pale stock. The foreground is always set
+/// alongside it, because the terminal's own text colour is usually light and
+/// would vanish against this.
+pub fn on_paper(text: String) -> String {
+  escape <> "47m" <> text <> escape <> "49m"
+}
+
+/// A card that has been picked up.
+pub fn on_held(text: String) -> String {
+  escape <> "103m" <> text <> escape <> "49m"
+}
+
 pub fn dim(text: String) -> String {
   escape <> "2m" <> text <> escape <> "22m"
 }

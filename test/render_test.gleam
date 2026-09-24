@@ -10,7 +10,7 @@ import gleam/string
 
 /// Nothing may exceed the board width, or the screen tears on a narrow
 /// terminal. Measured in graphemes: "A♠" is two columns but four bytes.
-const board_width = 55
+const board_width = 64
 
 fn view_of(number: Int) -> View {
   let assert Ok(dealt) = board.new(deck.deal(number))
@@ -40,22 +40,26 @@ fn view_on(board: board.Board) -> View {
 pub fn game_one_renders_exactly_this_test() {
   let expected = [
     "",
-    "  FreeCell #1                            0:00 · moves 0",
+    "  FreeCell #1                                     0:00 · moves 0",
     "",
-    "   a    s    d    f                  ♣    ♦    ♥    ♠",
-    "  [  ] [  ] [  ] [  ]               [  ] [  ] [  ] [  ]",
+    "    a      s      d      f             ♣      ♦      ♥      ♠",
+    "  ╭╌╌╌╌╮ ╭╌╌╌╌╮ ╭╌╌╌╌╮ ╭╌╌╌╌╮        ╭╌╌╌╌╮ ╭╌╌╌╌╮ ╭╌╌╌╌╮ ╭╌╌╌╌╮",
+    "  ╎    ╎ ╎    ╎ ╎    ╎ ╎    ╎        ╎    ╎ ╎    ╎ ╎    ╎ ╎    ╎",
+    "  ╰╌╌╌╌╯ ╰╌╌╌╌╯ ╰╌╌╌╌╯ ╰╌╌╌╌╯        ╰╌╌╌╌╯ ╰╌╌╌╌╯ ╰╌╌╌╌╯ ╰╌╌╌╌╯",
     "",
-    "   1      2      3      4      5      6      7      8",
-    "   J♦     2♦     9♥     J♣     5♦     7♥     7♣     5♥",
-    "   K♦     K♣     9♠     5♠     A♦     Q♣     K♥     3♥",
-    "   2♠     K♠     9♦     Q♦     J♠     A♠     A♥     3♣",
-    "   4♣     5♣     T♠     Q♥     4♥     A♣     4♦     7♠",
-    "   3♠     T♦     4♠     T♥     8♥     2♣     J♥     7♦",
-    "   6♦     8♠     8♦     Q♠     6♣     3♦     8♣     T♣",
-    "   6♠     9♣     2♥     6♥",
+    "    1       2       3       4       5       6       7       8",
+    "  │ J♦ │  │ 2♦ │  │ 9♥ │  │ J♣ │  │ 5♦ │  │ 7♥ │  │ 7♣ │  │ 5♥ │",
+    "  │ K♦ │  │ K♣ │  │ 9♠ │  │ 5♠ │  │ A♦ │  │ Q♣ │  │ K♥ │  │ 3♥ │",
+    "  │ 2♠ │  │ K♠ │  │ 9♦ │  │ Q♦ │  │ J♠ │  │ A♠ │  │ A♥ │  │ 3♣ │",
+    "  │ 4♣ │  │ 5♣ │  │ T♠ │  │ Q♥ │  │ 4♥ │  │ A♣ │  │ 4♦ │  │ 7♠ │",
+    "  │ 3♠ │  │ T♦ │  │ 4♠ │  │ T♥ │  │ 8♥ │  │ 2♣ │  │ J♥ │  │ 7♦ │",
+    "  │ 6♦ │  │ 8♠ │  │ 8♦ │  │ Q♠ │  ├────┤  ├────┤  ├────┤  ├────┤",
+    "  ├────┤  ├────┤  ├────┤  ├────┤  │ 6♣ │  │ 3♦ │  │ 8♣ │  │ T♣ │",
+    "  │ 6♠ │  │ 9♣ │  │ 2♥ │  │ 6♥ │  ╰────╯  ╰────╯  ╰────╯  ╰────╯",
+    "  ╰────╯  ╰────╯  ╰────╯  ╰────╯",
     "",
     "",
-    "  1-8 · asdf · u undo · h hint · ? keys · q quit",
+    "  1-8 · asdf · space home · u undo · h hint · ? keys · q quit",
   ]
   assert render.frame(view_of(1), render.plain()) == expected
 }
@@ -92,8 +96,13 @@ pub fn letters_mode_avoids_symbols_test() {
     assert !string.contains(line, "♦")
     assert !string.contains(line, "♠")
   })
-  let assert Ok(first_row) = lines |> list.drop(7) |> list.first
+  let assert Ok(first_row) = lines |> list.drop(9) |> list.first
   assert string.contains(first_row, "JD")
+  // The frames fall back to ASCII too, or the board would be half drawn.
+  list.each(lines, fn(line) {
+    assert !string.contains(line, "│")
+    assert !string.contains(line, "╭")
+  })
 }
 
 /// A selected column marks the whole run that would travel, not just the card
@@ -116,14 +125,17 @@ pub fn a_selected_free_cell_is_marked_test() {
       render.plain(),
     )
   assert list.any(lines, fn(line) { string.contains(line, ">6♠<") })
-  // The unselected cells keep their brackets.
-  assert list.any(lines, fn(line) { string.contains(line, "[  ]") })
+  // The unselected cells stay empty.
+  assert list.any(lines, fn(line) { string.contains(line, "╎    ╎") })
 }
 
-pub fn foundations_show_their_top_card_test() {
+/// Every empty slot is drawn as an empty card rather than left blank, so the
+/// board shows where cards can go.
+pub fn empty_slots_are_drawn_as_empty_cards_test() {
   let lines = render.frame(view_of(1), render.plain())
-  let assert Ok(holders) = lines |> list.drop(4) |> list.first
-  assert holders == "  [  ] [  ] [  ] [  ]               [  ] [  ] [  ] [  ]"
+  let assert Ok(faces) = lines |> list.drop(5) |> list.first
+  assert faces
+    == "  ╎    ╎ ╎    ╎ ╎    ╎ ╎    ╎        ╎    ╎ ╎    ╎ ╎    ╎ ╎    ╎"
 }
 
 pub fn the_header_counts_moves_test() {
@@ -208,5 +220,59 @@ pub fn the_header_shows_a_clock_test() {
 }
 
 pub fn the_clock_does_not_push_the_header_over_width_test() {
-  assert string.length(header_at(3599)) <= 55
+  assert string.length(header_at(3599)) <= board_width
+}
+
+/// The tallest a cascade can ever become is nineteen cards: a dealt seven
+/// whose exposed card is a king, with a full queen-to-ace run laid on it.
+/// Nothing in FreeCell can build higher, so if the board fits at nineteen it
+/// fits always.
+pub fn the_tallest_board_the_game_can_reach_fits_thirty_five_rows_test() {
+  let tall =
+    fixture.board_from([
+      "KS QH JS TH 9S 8H 7S 6H 5S 4H 3S 2H AS KD QC JD TC 9D 8C",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ])
+  let assert Ok(pile) = board.cascade_display(tall, 0)
+  assert list.length(pile) == 19
+
+  let lines = render.frame(view_on(tall), render.plain())
+  assert list.length(lines) <= 35
+  // Ten rows of chrome, plus the pile and the two rows that frame its foot.
+  assert list.length(lines) == 14 + 19
+}
+
+/// A column of one card is a whole card: a top edge, the face, and a base.
+pub fn a_single_card_column_is_drawn_as_one_card_test() {
+  let lonely = fixture.board_from(["KS", "", "", "", "", "", "", ""])
+  let lines = render.frame(view_on(lonely), render.plain())
+  let drawn =
+    lines
+    |> list.drop(9)
+    |> list.take(3)
+    |> list.map(fn(line) { string.slice(line, 2, 6) })
+  assert drawn == ["╭────╮", "│ K♠ │", "╰────╯"]
+}
+
+/// The cap moves above whatever is being lifted, so a run in hand reads as one
+/// block rather than being cut in two by the line above the foot.
+pub fn the_cap_sits_above_the_cards_in_hand_test() {
+  let held = fixture.board_from(["KS QH JS TH", "", "", "", "", "", "", ""])
+  let lines =
+    render.frame(
+      View(..view_on(held), selection: Some(Selection(Cascade(0), 3))),
+      render.plain(),
+    )
+  let drawn =
+    lines
+    |> list.drop(9)
+    |> list.take(6)
+    |> list.map(fn(line) { string.slice(line, 2, 6) })
+  assert drawn == ["│ K♠ │", "├────┤", "│>Q♥<│", "│>J♠<│", "│>T♥<│", "╰────╯"]
 }

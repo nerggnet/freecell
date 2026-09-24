@@ -3,19 +3,25 @@
 FreeCell for the terminal, written in Gleam and running on the BEAM.
 
 ```
-  FreeCell #617                          2:14 · moves 24
+  FreeCell #1                                    2:14 · moves 22
 
-   a    s    d    f                  ♣    ♦    ♥    ♠
-  [5♥] [  ] [  ] [K♣]               [A♣] [3♦] [  ] [2♠]
+    a      s      d      f             ♣      ♦      ♥      ♠
+  ╭────╮ ╭────╮ ╭────╮ ╭────╮        ╭────╮ ╭╌╌╌╌╮ ╭────╮ ╭────╮
+  │ 3♦ │ │ 4♦ │ │ 6♠ │ │ 8♣ │        │ 3♣ │ ╎    ╎ │ 6♥ │ │ A♠ │
+  ╰────╯ ╰────╯ ╰────╯ ╰────╯        ╰────╯ ╰╌╌╌╌╯ ╰────╯ ╰────╯
 
-   1      2      3      4      5      6      7      8
-   7♦     A♦     5♣     3♠     5♠     8♣     2♦     A♥
-   T♦     7♠     Q♦     A♣     6♦     8♥     A♠     K♥
-   T♥     Q♣     3♥     9♦     6♠     8♦     3♦     T♣
-   K♦     5♥     9♠     3♣     8♠     7♥     4♦    >J♠<
-   4♣
-
-  1-8 col · asdf cells · space home · u undo · q quit
+    1       2       3       4       5       6       7       8
+  │ J♦ │  │ 2♦ │  │ 9♥ │  │ J♣ │  │ 5♦ │  │ 7♥ │  │ 7♣ │  ╭────╮
+  │ K♦ │  │ K♣ │  │ 9♠ │  │ 5♠ │  │ A♦ │  │ Q♣ │  │ K♥ │  │ 6♦ │
+  │ 2♠ │  │ K♠ │  │ 9♦ │  │ Q♦ │  ├────┤  │ J♥ │  ├────┤  ╰────╯
+  │ 4♣ │  │ 5♣ │  │ T♠ │  │ Q♥ │  │ J♠ │  ├────┤  │ Q♠ │
+  ├────┤  │ T♦ │  │ 4♠ │  │ T♥ │  ╰────╯  │ T♣ │  ╰────╯
+  │ 3♠ │  │ 8♠ │  │ 8♦ │  │ 9♣ │          ╰────╯
+  ╰────╯  │ 7♦ │  ├────┤  ├────┤
+          ├────┤  │ 7♠ │  │>8♥<│
+          │ 6♣ │  ╰────╯  ╰────╯
+          ╰────╯
+  1-8 · asdf · space home · u undo · h hint · ? keys · q quit
 ```
 
 ## Installing
@@ -30,7 +36,8 @@ chmod +x freecell
 ```
 
 One file, no installer. It needs Erlang/OTP 26 or later on the machine that
-runs it, but not Gleam and not this repository.
+runs it, but not Gleam and not this repository. Give it a terminal at least 64
+columns wide; 33 rows covers even the tallest pile the game can build.
 
 ## Playing
 
@@ -84,7 +91,7 @@ it can be tested without a terminal anywhere in sight.
 | `rules` | what is legal, runs of cards, auto-play, won and stuck |
 | `solver` | a best-first search, behind hints and finishing |
 | `game` | a game in progress, with undo and redo |
-| `render` | a board to lines of text — optionally coloured |
+| `render` | a board to lines of text — cards, frames and colour |
 | `stats` | the record, and its file format |
 | `tui/key`, `tui/app` | keys, and what each one does — still pure |
 | `tui/term`, `tui/ansi`, `freecell_ffi.erl` | the only parts that touch the terminal |
