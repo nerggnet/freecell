@@ -93,10 +93,19 @@ one without the other leaves half the board undrawable on plain terminals.
 
 `src/freecell/solver.gleam` is a best-first search behind `h` and `!`, and it
 underwrites the tests: the rules are checked by whether real numbered deals can
-be played through to a win. It solves most deals in under 100 ms but **fails on
-deals 617 and 4** — 617 resisted a 250,000-position budget. The replay tests
-use deals 1, 3, 7, 8, 14 and 15 for that reason; do not "fix" them by switching
-to 617.
+be played through to a win.
+
+**At the in-game budget of 20,000 positions it solves about 92% of deals**
+(916 of the first 1,000, measured). The rest it gives up on, so a hint must be
+free to say it found nothing — but that is the search giving up, not the deal
+being unsolvable. Of the 32,000 numbered deals only #11982 has no solution.
+Raising the budget converts most failures: of 30 sampled failures, 10 fall to
+60,000 and 20 to 200,000, deals 4 and 617 among them. Budget is therefore a
+real lever on hint quality, and cheap to pull, because the search runs off the
+event loop.
+
+The replay tests use deals 1, 3, 7, 8, 14 and 15 because they solve in about
+10 ms each, keeping the suite fast — not because other deals are impossible.
 
 Search exhaustion is **not** proof of unsolvability: `candidates` prunes moves
 that are only mostly redundant. Deal 11982 (the known-unsolvable one) exhausts,
