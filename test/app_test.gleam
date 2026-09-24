@@ -7,7 +7,9 @@ import freecell/rules
 import freecell/solver
 import freecell/stats
 import freecell/tui/app
-import freecell/tui/key.{type Key, Backspace, Char, Ctrl, Enter, Escape, Space}
+import freecell/tui/key.{
+  type Key, Backspace, Char, Ctrl, Down, Enter, Escape, Space, Up,
+}
 import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
@@ -35,7 +37,7 @@ fn message(state: app.State) -> String {
 /// Game 1 leaves the six of spades exposed at the foot of column 1.
 pub fn a_column_key_picks_the_column_up_test() {
   let picked = press(start(), [Char("1")])
-  assert app.view(picked).selection == Some(Cascade(0))
+  assert app.view(picked).selection == Some(render.Selection(Cascade(0), 1))
   assert message(picked) == ""
 }
 
@@ -71,7 +73,7 @@ pub fn a_second_key_completes_the_move_test() {
 pub fn a_refused_move_keeps_the_card_in_hand_test() {
   let refused = press(start(), [Char("1"), Char("2")])
   let seen = app.view(refused)
-  assert seen.selection == Some(Cascade(0))
+  assert seen.selection == Some(render.Selection(Cascade(0), 1))
   assert seen.moves == 0
   assert seen.message == "Cards stack one rank down."
 }
@@ -122,7 +124,8 @@ pub fn declining_the_quit_carries_on_test() {
   let assert app.Continue(staying) = app.update(asking, app.KeyPress(Char("n")))
   assert !string.contains(app.view(staying).message, "Quit?")
   // And the game is still playable afterwards.
-  assert app.view(press(staying, [Char("1")])).selection == Some(Cascade(0))
+  assert app.view(press(staying, [Char("1")])).selection
+    == Some(render.Selection(Cascade(0), 1))
 }
 
 /// Ctrl-C is the one key that does not stop to ask.
@@ -371,4 +374,64 @@ pub fn the_help_mentions_hints_test() {
   let shown = app.screen(press(start(), [Char("?")])) |> string.join("\n")
   assert string.contains(shown, "suggest a move")
   assert string.contains(shown, "finish the game")
+}
+
+// --- Taking part of a run --------------------------------------------------
+
+/// Game 251 deals Q♠ J♥ T♣ at the foot of column 3: a run of three.
+fn with_a_run() -> app.State {
+  app.new(251, 0, render.plain(), stats.empty())
+}
+
+pub fn a_column_is_picked_up_run_and_all_test() {
+  let picked = press(with_a_run(), [Char("3")])
+  assert app.view(picked).selection == Some(render.Selection(Cascade(2), 3))
+}
+
+pub fn the_arrows_take_more_or_fewer_cards_test() {
+  let picked = press(with_a_run(), [Char("3")])
+
+  let fewer = press(picked, [Down])
+  assert app.view(fewer).selection == Some(render.Selection(Cascade(2), 2))
+  assert message(fewer) == "Holding 2 of 3."
+
+  // It will not go below one, however hard you press.
+  let fewest = press(fewer, [Down, Down, Down])
+  assert app.view(fewest).selection == Some(render.Selection(Cascade(2), 1))
+
+  // Nor above what is actually there.
+  let more = press(fewest, [Up, Up, Up, Up])
+  assert app.view(more).selection == Some(render.Selection(Cascade(2), 3))
+}
+
+/// Left alone, a move carries as many cards as will go — one, into a free
+/// cell. Say "three" explicitly and it is refused instead of quietly doing
+/// something else.
+pub fn an_explicit_count_is_honoured_test() {
+  let by_default = press(with_a_run(), [Char("3"), Char("a")])
+  assert app.view(by_default).moves == 1
+  assert fixture.cells(app.view(by_default).board) == ["TC", ".", ".", "."]
+
+  let insisting = press(with_a_run(), [Char("3"), Up, Char("a")])
+  assert app.view(insisting).moves == 0
+  assert message(insisting) == "Only one card can go there."
+}
+
+pub fn picking_something_else_up_forgets_the_count_test() {
+  let adjusted = press(with_a_run(), [Char("3"), Down])
+  assert app.view(adjusted).selection == Some(render.Selection(Cascade(2), 2))
+
+  let elsewhere = press(adjusted, [Escape, Char("3")])
+  assert app.view(elsewhere).selection == Some(render.Selection(Cascade(2), 3))
+}
+
+pub fn the_arrows_need_something_in_hand_test() {
+  assert message(press(with_a_run(), [Up])) == "Pick a card up first."
+  assert message(press(with_a_run(), [Down])) == "Pick a card up first."
+}
+
+pub fn a_single_card_column_says_there_is_no_more_to_take_test() {
+  let picked = press(start(), [Char("1"), Up])
+  assert message(picked) == "Only one card can travel from there."
+  assert app.view(picked).selection == Some(render.Selection(Cascade(0), 1))
 }

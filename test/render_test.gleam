@@ -3,7 +3,7 @@ import freecell/board
 import freecell/card
 import freecell/deck
 import freecell/location.{Cascade, Free}
-import freecell/render.{type View, Letters, Options, Symbols, View}
+import freecell/render.{type View, Letters, Options, Selection, Symbols, View}
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
@@ -85,7 +85,7 @@ pub fn letters_mode_avoids_symbols_test() {
 /// A selected column marks the whole run that would travel, not just the card
 /// on the end of it.
 pub fn a_selected_run_is_marked_test() {
-  let picked = View(..view_of(1), selection: Some(Cascade(0)))
+  let picked = View(..view_of(1), selection: Some(Selection(Cascade(0), 1)))
   let lines = render.frame(picked, render.plain())
   // Column 1 of game 1 ends 6♦ 6♠, which is not a run, so only 6♠ is taken.
   assert list.any(lines, fn(line) { string.contains(line, ">6♠<") })
@@ -98,7 +98,7 @@ pub fn a_selected_free_cell_is_marked_test() {
     |> fixture.with_cells(["", "6S", "", ""])
   let lines =
     render.frame(
-      View(..view_on(parked), selection: Some(Free(1))),
+      View(..view_on(parked), selection: Some(Selection(Free(1), 1))),
       render.plain(),
     )
   assert list.any(lines, fn(line) { string.contains(line, ">6♠<") })

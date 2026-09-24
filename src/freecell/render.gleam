@@ -49,12 +49,17 @@ pub fn plain() -> Options {
 /// Everything the screen shows. Deliberately not a `Game`: the renderer has
 /// no business knowing about history or undo, and tests can build a view from
 /// any board without playing a game to reach it.
+/// What the player is holding: where it came from, and how many cards.
+pub type Selection {
+  Selection(place: Location, cards: Int)
+}
+
 pub type View {
   View(
     board: Board,
     number: Int,
     moves: Int,
-    selection: Option(Location),
+    selection: Option(Selection),
     message: String,
   )
 }
@@ -101,7 +106,11 @@ fn holder_labels(options: Options) -> String {
 fn holders(state: Board, view: View, options: Options) -> String {
   let cells =
     list.index_map(board.free_cells(state), fn(held, index) {
-      slot(held, holder_frame(view.selection == Some(Free(index))), options)
+      let picked = case view.selection {
+        Some(Selection(place, _)) -> place == Free(index)
+        None -> False
+      }
+      slot(held, holder_frame(picked), options)
     })
   let piles =
     list.map(card.suits(), fn(suit) {
@@ -140,8 +149,7 @@ fn cascades(state: Board, view: View, options: Options) -> List(String) {
         let held = pile |> list.drop(row) |> list.first |> option.from_result
         let picked = case held {
           None -> False
-          Some(_) ->
-            row >= selection_starts_at(state, view, column, list.length(pile))
+          Some(_) -> row >= selection_starts_at(view, column, list.length(pile))
         }
         slot(held, frame_for(picked), options)
       })
@@ -155,15 +163,9 @@ fn display_column(state: Board, index: Int) -> List(Card) {
 
 /// The display row at which this column's selection begins. A column that is
 /// not selected reports a row past its own end, so nothing is marked.
-fn selection_starts_at(
-  state: Board,
-  view: View,
-  column: Int,
-  depth: Int,
-) -> Int {
+fn selection_starts_at(view: View, column: Int, depth: Int) -> Int {
   case view.selection {
-    Some(Cascade(index)) if index == column ->
-      depth - rules.run_length(state, Cascade(column))
+    Some(Selection(Cascade(index), cards)) if index == column -> depth - cards
     _ -> depth + 1
   }
 }
@@ -299,6 +301,7 @@ pub fn help(record: Stats, options: Options) -> List(String) {
       key_line("a s d f", "pick up a free cell"),
       key_line("space", "send the card home (" <> cells <> ")"),
       key_line("esc", "put the card back"),
+      key_line("up down", "take more or fewer cards"),
       key_line("u   r", "undo, redo"),
       key_line("n", "deal a new game"),
       key_line("h", "suggest a move, if there is one"),

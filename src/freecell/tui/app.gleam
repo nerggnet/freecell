@@ -8,11 +8,13 @@ import freecell/board.{type Board}
 import freecell/deck
 import freecell/game.{type Game}
 import freecell/location.{type Location, Cascade, Foundation, Free}
-import freecell/render.{type Options, type View, View}
+import freecell/render.{type Options, type View, Selection, View}
 import freecell/rules.{type Illegal, type Move, Move}
 import freecell/solver
 import freecell/stats.{type Stats}
-import freecell/tui/key.{type Key, Backspace, Char, Ctrl, Enter, Escape, Space}
+import freecell/tui/key.{
+  type Key, Backspace, Char, Ctrl, Down, Enter, Escape, Space, Up,
+}
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -27,6 +29,9 @@ pub opaque type State {
   State(
     game: Game,
     selection: Option(Location),
+    /// How many cards are held. `None` means "as many as will go", which is
+    /// what picking a column up gives you; the arrow keys make it explicit.
+    held: Option(Int),
     message: String,
     mode: Mode,
     seed: Int,
@@ -72,6 +77,7 @@ pub fn new(number: Int, seed: Int, options: Options, record: Stats) -> State {
   State(
     game: game.new(number),
     selection: None,
+    held: None,
     message: "Pick a column with 1-8, or ? for the keys.",
     mode: Playing,
     seed:,
@@ -109,7 +115,10 @@ pub fn view(state: State) -> View {
       board: game.board(state.game),
       number: game.number(state.game),
       moves: game.moves(state.game),
-      selection: state.selection,
+      selection: case state.selection {
+        None -> None
+        Some(place) -> Some(Selection(place, cards_held(state)))
+      },
       message: state.message,
     )
   case state.mode {
@@ -154,7 +163,10 @@ fn play(state: State, pressed: Key) -> Step {
     Char("u") -> Continue(undo(state))
     Char("r") -> Continue(redo(state))
     Char("n") -> Continue(deal_next(state))
-    Escape | Backspace -> Continue(State(..state, selection: None, message: ""))
+    Escape | Backspace ->
+      Continue(State(..state, selection: None, held: None, message: ""))
+    Up -> Continue(take(state, 1))
+    Down -> Continue(take(state, -1))
     Space | Enter -> Continue(send_home(state))
     Char(character) ->
       case place_for(character) {
@@ -171,11 +183,12 @@ fn choose(state: State, target: Location) -> State {
   case state.selection {
     None ->
       case board.exposed(game.board(state.game), target) {
-        Ok(_) -> State(..state, selection: Some(target), message: "")
+        Ok(_) ->
+          State(..state, selection: Some(target), held: None, message: "")
         Error(Nil) -> State(..state, message: "Nothing to pick up there.")
       }
     Some(source) if source == target ->
-      State(..state, selection: None, message: "Put back.")
+      State(..state, selection: None, held: None, message: "Put back.")
     Some(source) -> attempt(state, source, target)
   }
 }
@@ -185,14 +198,54 @@ fn send_home(state: State) -> State {
     None -> State(..state, message: "Pick a card up first.")
     Some(source) ->
       case board.exposed(game.board(state.game), source) {
-        Error(Nil) -> State(..state, selection: None, message: "")
+        Error(Nil) -> State(..state, selection: None, held: None, message: "")
         Ok(moving) -> attempt(state, source, Foundation(moving.suit))
       }
   }
 }
 
+/// How many cards the player is holding, which is the whole movable run
+/// unless they have said otherwise.
+fn cards_held(state: State) -> Int {
+  case state.selection {
+    None -> 0
+    Some(place) ->
+      case state.held {
+        Some(count) -> count
+        None -> rules.run_length(game.board(state.game), place)
+      }
+  }
+}
+
+/// Take one more or one fewer card. Only a column ever holds more than one, so
+/// elsewhere this has nothing to do.
+fn take(state: State, step: Int) -> State {
+  case state.selection {
+    None -> State(..state, message: "Pick a card up first.")
+    Some(place) -> {
+      let most = rules.run_length(game.board(state.game), place)
+      let wanted = int.min(int.max(cards_held(state) + step, 1), most)
+      State(..state, held: Some(wanted), message: case most {
+        1 -> "Only one card can travel from there."
+        _ ->
+          "Holding "
+          <> int.to_string(wanted)
+          <> " of "
+          <> int.to_string(most)
+          <> "."
+      })
+    }
+  }
+}
+
 fn attempt(state: State, source: Location, target: Location) -> State {
-  case game.play(state.game, Move(source, target)) {
+  let outcome = case state.held {
+    // Untouched: carry as many as will go.
+    None -> game.play(state.game, Move(source, target))
+    // The player chose a number, so hold them to it.
+    Some(count) -> game.play_run(state.game, Move(source, target), count)
+  }
+  case outcome {
     Ok(#(next, carried)) ->
       note_win(changed(
         State(

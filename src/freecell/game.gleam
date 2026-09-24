@@ -61,6 +61,24 @@ pub fn status(game: Game) -> Status {
 /// Make a move, carrying as many cards as will go, and report how many went.
 pub fn play(game: Game, move: Move) -> Result(#(Game, Int), Illegal) {
   use #(moved, count) <- result.try(rules.apply_best(game.board, move))
+  Ok(#(advance(game, moved), count))
+}
+
+/// Make a move carrying exactly `count` cards.
+///
+/// Distinct from `play` because the two differ where a run goes onto an empty
+/// column: any number of cards is legal there, so "as many as will go" is a
+/// choice rather than the only option.
+pub fn play_run(
+  game: Game,
+  move: Move,
+  count: Int,
+) -> Result(#(Game, Int), Illegal) {
+  use moved <- result.try(rules.apply_run(game.board, move, count))
+  Ok(#(advance(game, moved), count))
+}
+
+fn advance(game: Game, moved: Board) -> Game {
   let settled = case game.autoplay {
     True -> {
       let #(after, _) = rules.auto_play(moved)
@@ -68,16 +86,13 @@ pub fn play(game: Game, move: Move) -> Result(#(Game, Int), Illegal) {
     }
     False -> moved
   }
-  Ok(#(
-    Game(
-      ..game,
-      board: settled,
-      past: [game.board, ..game.past],
-      future: [],
-      moves: game.moves + 1,
-    ),
-    count,
-  ))
+  Game(
+    ..game,
+    board: settled,
+    past: [game.board, ..game.past],
+    future: [],
+    moves: game.moves + 1,
+  )
 }
 
 pub fn can_undo(game: Game) -> Bool {

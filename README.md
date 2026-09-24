@@ -47,6 +47,7 @@ Moves take two keys: one to pick a card up, one to say where it goes.
 | `1`–`8` | pick up a column |
 | `a s d f` | pick up a free cell |
 | `space` | send the card in hand to its foundation |
+| `↑` `↓` | take more or fewer cards |
 | `esc` | put the card back |
 | `u` / `r` | undo / redo |
 | `n` | deal a new game |
@@ -57,8 +58,10 @@ Moves take two keys: one to pick a card up, one to say where it goes.
 | `q` | quit |
 
 Picking up a column takes the whole run at its foot, not just the bottom card,
-and moves as many of them as there is room for. Cards that can no longer be
-needed are sent to the foundations automatically; `p` turns that off.
+and moves as many of them as there is room for. Where that is not what you
+want — parking one card of a run in an empty column, say — `↑` and `↓` set the
+number by hand. Cards that can no longer be needed are sent to the foundations
+automatically; `p` turns that off.
 
 Games are numbered as in Microsoft FreeCell, so `--game 617` deals the same
 cards here as anywhere else. Wins and losses are kept in
