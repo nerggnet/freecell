@@ -177,16 +177,27 @@ fn indices(count: Int) -> List(Int) {
 /// Moving *into* an empty column costs you that column as staging space, so it
 /// does not count towards the doubling.
 pub fn capacity(board board: Board, into into: Location) -> Int {
-  let spare_cells = board.empty_free_cells(board)
-  let spare_columns = case into {
+  case into {
     Cascade(index) ->
       case board.cascade(board, index) {
-        Ok([]) -> board.empty_cascades(board) - 1
-        _ -> board.empty_cascades(board)
+        // An empty destination is spent by the move, so it cannot also stage
+        // it. Losing one doubling is exactly halving.
+        Ok([]) -> int.max(carrying_capacity(board) / 2, 1)
+        _ -> carrying_capacity(board)
       }
-    _ -> board.empty_cascades(board)
+    _ -> carrying_capacity(board)
   }
-  { spare_cells + 1 } * int.bitwise_shift_left(1, int.max(spare_columns, 0))
+}
+
+/// How many cards can travel as one onto a column that is not empty.
+///
+/// This is the number worth showing a player: one for each free cell plus one
+/// for the card itself, doubled for every empty column. It is also the number
+/// that surprises them — with every cell full and no empty column it is 1, and
+/// then cards really do move one at a time.
+pub fn carrying_capacity(board: Board) -> Int {
+  { board.empty_free_cells(board) + 1 }
+  * int.bitwise_shift_left(1, board.empty_cascades(board))
 }
 
 /// How many cards at the exposed end of `from` form a movable run.

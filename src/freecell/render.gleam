@@ -69,6 +69,8 @@ pub type View {
     message: String,
     /// Seconds since the deal.
     elapsed: Int,
+    /// How many cards can travel as one onto an occupied column.
+    carry: Int,
   )
 }
 
@@ -144,7 +146,15 @@ pub fn frame(view: View, options: Options) -> List(String) {
 
 fn title(view: View) -> String {
   let left = "FreeCell #" <> int.to_string(view.number)
-  let right = clock(view.elapsed) <> " · moves " <> int.to_string(view.moves)
+  // The carrying capacity leads, because it is the number that answers "why
+  // will this not move?" — and when it is 1, cards really do move one at a
+  // time, which otherwise looks like the game refusing to shift a run.
+  let right =
+    int.to_string(view.carry)
+    <> " at a time · "
+    <> clock(view.elapsed)
+    <> " · moves "
+    <> int.to_string(view.moves)
   margin <> spread(left, right, board_width - string.length(margin))
 }
 
@@ -450,6 +460,12 @@ pub fn help(record: Stats, options: Options) -> List(String) {
       key_line("p", "auto-play to the foundations on/off"),
       key_line("?", "this screen"),
       key_line("q", "quit"),
+      "",
+      margin <> "Carrying",
+      "",
+      margin <> "  The header counts how many cards move as one: your free",
+      margin <> "  cells plus one, doubled for every empty column. Moving",
+      margin <> "  into an empty column spends it, so that carries half.",
       "",
       margin <> "Record",
       "",

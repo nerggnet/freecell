@@ -77,6 +77,12 @@ width and never padded around**, because an escape sequence has length but no
 width — and `A♠` is two columns but four bytes. Measure with `string.length`
 (grapheme-aware), never byte size.
 
+The header shows `rules.carrying_capacity` — cells plus one, doubled per empty
+column — because it is what answers "why will this not move?". It deliberately
+shows the figure for an *occupied* destination; moving into an empty column
+halves it, which `rules.capacity` accounts for and the refusal message names
+exactly.
+
 `render.frame` produces `14 + tallest cascade` lines. A cascade can never
 exceed 19 cards (a dealt seven ending in a king, plus a full queen-to-ace run),
 so the worst board is 33 rows and 64 columns. A test pins this.

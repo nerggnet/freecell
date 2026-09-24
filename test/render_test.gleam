@@ -4,6 +4,8 @@ import freecell/card
 import freecell/deck
 import freecell/location.{Cascade, Free}
 import freecell/render.{type View, Letters, Options, Selection, Symbols, View}
+import freecell/rules
+import freecell/stats
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
@@ -14,14 +16,7 @@ const board_width = 64
 
 fn view_of(number: Int) -> View {
   let assert Ok(dealt) = board.new(deck.deal(number))
-  View(
-    board: dealt,
-    number: number,
-    moves: 0,
-    selection: None,
-    message: "",
-    elapsed: 0,
-  )
+  View(..view_on(dealt), number: number)
 }
 
 fn view_on(board: board.Board) -> View {
@@ -32,6 +27,7 @@ fn view_on(board: board.Board) -> View {
     selection: None,
     message: "",
     elapsed: 0,
+    carry: rules.carrying_capacity(board),
   )
 }
 
@@ -40,7 +36,7 @@ fn view_on(board: board.Board) -> View {
 pub fn game_one_renders_exactly_this_test() {
   let expected = [
     "",
-    "  FreeCell #1                                     0:00 · moves 0",
+    "  FreeCell #1                       5 at a time · 0:00 · moves 0",
     "",
     "    a      s      d      f             ♣      ♦      ♥      ♠",
     "  ╭╌╌╌╌╮ ╭╌╌╌╌╮ ╭╌╌╌╌╮ ╭╌╌╌╌╮        ╭╌╌╌╌╮ ╭╌╌╌╌╮ ╭╌╌╌╌╮ ╭╌╌╌╌╮",
@@ -206,8 +202,12 @@ fn is_letter(char: String) -> Bool {
 }
 
 fn header_at(seconds: Int) -> String {
-  let lines = render.frame(View(..view_of(1), elapsed: seconds), render.plain())
-  let assert Ok(header) = lines |> list.drop(1) |> list.first
+  header_of(View(..view_of(1), elapsed: seconds))
+}
+
+fn header_of(view: View) -> String {
+  let assert Ok(header) =
+    render.frame(view, render.plain()) |> list.drop(1) |> list.first
   header
 }
 
@@ -219,8 +219,14 @@ pub fn the_header_shows_a_clock_test() {
   assert string.contains(header_at(3599), "59:59")
 }
 
-pub fn the_clock_does_not_push_the_header_over_width_test() {
+/// The header holds four things and none of them may push it over the edge.
+pub fn a_crowded_header_still_fits_test() {
   assert string.length(header_at(3599)) <= board_width
+
+  let roomy = fixture.board_from(["KS", "KH", "", "", "", "", "", ""])
+  let crowded =
+    View(..view_on(roomy), number: 32_000, moves: 999, elapsed: 3599)
+  assert string.length(header_of(crowded)) <= board_width
 }
 
 /// The tallest a cascade can ever become is nineteen cards: a dealt seven
@@ -275,4 +281,29 @@ pub fn the_cap_sits_above_the_cards_in_hand_test() {
     |> list.take(6)
     |> list.map(fn(line) { string.slice(line, 2, 6) })
   assert drawn == ["│ K♠ │", "├────┤", "│>Q♥<│", "│>J♠<│", "│>T♥<│", "╰────╯"]
+}
+
+/// The header carries the number that answers "why will this not move?".
+///
+/// With every free cell full and no empty column it really is one, and cards
+/// really do move one at a time — which otherwise reads as the game refusing
+/// to shift a run.
+pub fn the_header_counts_what_can_be_carried_test() {
+  assert string.contains(header_of(view_of(1)), "5 at a time")
+
+  let packed =
+    fixture.board_from(["KS", "KH", "KD", "KC", "QS", "QH", "QD", "QC"])
+    |> fixture.with_cells(["2C", "2D", "2H", "2S"])
+  assert string.contains(header_of(view_on(packed)), "1 at a time")
+
+  // Six empty columns doubling five times over: 5 x 2^6.
+  let roomy = fixture.board_from(["KS", "KH", "", "", "", "", "", ""])
+  assert rules.carrying_capacity(roomy) == 320
+  assert string.contains(header_of(view_on(roomy)), "320 at a time")
+}
+
+pub fn the_help_explains_carrying_test() {
+  let shown = render.help(stats.empty(), render.plain()) |> string.join("\n")
+  assert string.contains(shown, "Carrying")
+  assert string.contains(shown, "doubled for every empty column")
 }

@@ -146,3 +146,21 @@ pub fn a_run_keeps_every_card_test() {
   let assert Ok(after) = rules.apply_run(board, Move(Cascade(0), Cascade(1)), 3)
   assert board.card_count(after) == before
 }
+
+/// The figure shown to the player, before any destination is chosen: one per
+/// free cell plus one, doubled for every empty column.
+pub fn carrying_capacity_counts_cells_and_spaces_test() {
+  assert rules.carrying_capacity(packed()) == 5
+
+  let no_cells = fixture.with_cells(packed(), ["2C", "2D", "2H", "2S"])
+  assert rules.carrying_capacity(no_cells) == 1
+
+  let one_gap =
+    fixture.board_from(["KS", "KH", "KD", "KC", "QS", "QH", "QD", ""])
+  assert rules.carrying_capacity(one_gap) == 10
+
+  // Into the gap itself it is halved, which `capacity` accounts for and the
+  // header deliberately does not.
+  assert rules.capacity(one_gap, Cascade(7)) == 5
+  assert rules.capacity(one_gap, Cascade(0)) == 10
+}

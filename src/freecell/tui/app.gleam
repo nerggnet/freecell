@@ -157,6 +157,7 @@ pub fn view(state: State) -> View {
       },
       message: state.message,
       elapsed: elapsed(state),
+      carry: rules.carrying_capacity(game.board(state.game)),
     )
   case state.mode {
     ConfirmQuit ->

@@ -3,7 +3,7 @@
 FreeCell for the terminal, written in Gleam and running on the BEAM.
 
 ```
-  FreeCell #1                                    2:14 · moves 22
+  FreeCell #1                      1 at a time · 2:14 · moves 22
 
     a      s      d      f             ♣      ♦      ♥      ♠
   ╭────╮ ╭────╮ ╭────╮ ╭────╮        ╭────╮ ╭╌╌╌╌╮ ╭────╮ ╭────╮
@@ -70,6 +70,11 @@ and moves as many of them as there is room for. Where that is not what you
 want — parking one card of a run in an empty column, say — `↑` and `↓` set the
 number by hand. Cards that can no longer be needed are sent to the foundations
 automatically; `p` turns that off.
+
+How many is "as many as there is room for"? The header says. It is one for
+each free cell plus one, doubled for every empty column — so with every cell
+full and nowhere empty it really is one, and cards really do move one at a
+time. Moving *into* an empty column spends it, so that carries half as many.
 
 Games are numbered as in Microsoft FreeCell, so `--game 617` deals the same
 cards here as anywhere else. Wins and losses are kept in
