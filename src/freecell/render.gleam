@@ -75,6 +75,13 @@ pub type View {
     /// Whether the game has run out of moves. Decided by the caller, which
     /// knows which rules are in force; the renderer only reports it.
     stuck: Bool,
+    /// Whether every remaining card could go home, the game being decided but
+    /// not yet finished.
+    ready: Bool,
+    /// A question awaiting an answer. It outranks everything else on the
+    /// status line — including the win banner, which otherwise hides it and
+    /// leaves the player pressing keys at a screen that never changes.
+    prompt: Option(String),
   )
 }
 
@@ -447,11 +454,18 @@ fn blank() -> String {
 // --- Footer ----------------------------------------------------------------
 
 fn status(view: View) -> String {
-  let text = case rules.is_won(view.board), view.stuck {
-    True, _ ->
-      "You win — " <> int.to_string(view.moves) <> " moves. n for a new game."
-    _, True -> "No moves left. u to undo, n for a new game."
-    _, _ -> view.message
+  let text = case view.prompt {
+    Some(question) -> question
+    None ->
+      case rules.is_won(view.board), view.stuck, view.ready {
+        True, _, _ ->
+          "You win — "
+          <> int.to_string(view.moves)
+          <> " moves. n for a new game."
+        _, True, _ -> "No moves left. u to undo, n for a new game."
+        _, _, True -> "Every card can go home now — space to finish."
+        _, _, _ -> view.message
+      }
   }
   margin <> text
 }
@@ -465,10 +479,6 @@ fn hints() -> String {
 /// The key list and the record of games played. Same width as the board, so
 /// the caller can centre it the same way.
 pub fn help(record: Stats, options: Options) -> List(String) {
-  let cells = case options.suits {
-    Symbols -> "♣ ♦ ♥ ♠"
-    Letters -> "C D H S"
-  }
   list.map(
     [
       "",
@@ -476,7 +486,7 @@ pub fn help(record: Stats, options: Options) -> List(String) {
       "",
       key_line("1 - 8", "pick up a column"),
       key_line("a s d f", "pick up a free cell"),
-      key_line("space", "send the card home (" <> cells <> ")"),
+      key_line("space", "send a card home, or finish a decided game"),
       key_line("up down", "take more or fewer cards"),
       key_line("esc", "put the card back"),
       key_line("u   r", "undo, redo"),
@@ -493,6 +503,9 @@ pub fn help(record: Stats, options: Options) -> List(String) {
       margin <> "  The header counts how many cards move as one: your free",
       margin <> "  cells plus one, doubled for every empty column. Moving",
       margin <> "  into an empty column spends it, so that carries half.",
+      "",
+      margin <> "  A game whose every card can go home is not swept away",
+      margin <> "  at once: it says so, and waits for you to finish it.",
       "",
       margin <> "  Relaxed rules lift that limit entirely — runs move whole,",
       margin <> "  however little room there is. Games played that way are",

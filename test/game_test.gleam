@@ -103,6 +103,10 @@ pub fn a_game_played_to_the_end_reports_that_it_is_won_test() {
       next
     })
 
+  // Auto-play holds at the brink, so the last step is asked for explicitly.
+  assert rules.is_certain(game.board(finished))
+  let finished = game.finish(finished)
+
   assert game.status(finished) == game.Won
   assert game.moves(finished) == list.length(moves)
   assert board.card_count(game.board(finished)) == 52

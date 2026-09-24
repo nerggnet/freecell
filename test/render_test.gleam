@@ -27,8 +27,10 @@ fn view_on(board: board.Board) -> View {
     selection: None,
     message: "",
     elapsed: 0,
-    carry: Some(rules.carrying_capacity(board)),
+    carry: Some(rules.shown_capacity(board)),
     stuck: rules.is_stuck(rules.Standard, board),
+    ready: rules.is_certain(board) && !rules.is_won(board),
+    prompt: None,
   )
 }
 
@@ -312,10 +314,12 @@ pub fn the_header_counts_what_can_be_carried_test() {
     |> fixture.with_cells(["2C", "2D", "2H", "2S"])
   assert string.contains(header_of(view_on(packed)), "1 at a time")
 
-  // Six empty columns doubling five times over: 5 x 2^6.
+  // Six empty columns doubling five times over comes to 5 x 2^6, but no run is
+  // longer than a suit, so the header stops counting at thirteen.
   let roomy = fixture.board_from(["KS", "KH", "", "", "", "", "", ""])
   assert rules.carrying_capacity(roomy) == 320
-  assert string.contains(header_of(view_on(roomy)), "320 at a time")
+  assert rules.shown_capacity(roomy) == 13
+  assert string.contains(header_of(view_on(roomy)), "13 at a time")
 }
 
 pub fn the_help_explains_carrying_test() {

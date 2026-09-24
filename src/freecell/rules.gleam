@@ -220,6 +220,16 @@ fn standard_capacity(board: Board, into: Location) -> Int {
 /// for the card itself, doubled for every empty column. It is also the number
 /// that surprises them — with every cell full and no empty column it is 1, and
 /// then cards really do move one at a time.
+/// The carrying capacity as it is worth telling a player.
+///
+/// A run can never be longer than a full suit, so a board with several empty
+/// columns reports numbers in the hundreds that mean nothing. The cap is for
+/// display only: `capacity` needs the true figure, because halving it for an
+/// empty destination has to halve the real number.
+pub fn shown_capacity(board: Board) -> Int {
+  int.min(carrying_capacity(board), card.king)
+}
+
 pub fn carrying_capacity(board: Board) -> Int {
   { board.empty_free_cells(board) + 1 }
   * int.bitwise_shift_left(1, board.empty_cascades(board))
@@ -470,6 +480,13 @@ fn next_safe_promotion(state: Board) -> Result(#(Board, Card), Nil) {
 }
 
 // --- How the game stands ---------------------------------------------------
+
+/// True when nothing stands in the way any more: safe auto-play alone would
+/// carry every remaining card home. The game is decided, but not yet over.
+pub fn is_certain(board: Board) -> Bool {
+  let #(settled, _) = auto_play(board)
+  is_won(settled)
+}
 
 pub fn is_won(board: Board) -> Bool {
   list.all(card.suits(), fn(suit) { board.foundation(board, suit) == card.king })

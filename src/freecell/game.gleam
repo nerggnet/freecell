@@ -103,10 +103,7 @@ pub fn play_run(
 
 fn advance(game: Game, moved: Board) -> Game {
   let settled = case game.autoplay {
-    True -> {
-      let #(after, _) = rules.auto_play(moved)
-      after
-    }
+    True -> hold_at_the_brink(moved)
     False -> moved
   }
   Game(
@@ -163,9 +160,26 @@ pub fn redo(game: Game) -> Result(Game, Nil) {
 pub fn set_auto_play(game: Game, enabled: Bool) -> Game {
   case enabled {
     False -> Game(..game, autoplay: False)
-    True -> {
-      let #(settled, _) = rules.auto_play(game.board)
-      Game(..game, autoplay: True, board: settled)
-    }
+    True -> Game(..game, autoplay: True, board: hold_at_the_brink(game.board))
+  }
+}
+
+/// Send home everything that can go home. Finishing a decided game is left to
+/// the player to ask for, so this is the only thing that does it.
+pub fn finish(game: Game) -> Game {
+  let #(settled, _) = rules.auto_play(game.board)
+  Game(..game, board: settled)
+}
+
+/// Auto-play as usual — unless doing so would carry the entire board home.
+///
+/// Watching forty cards vanish between one keypress and the next is not a
+/// reward, it is a jump cut. The board stops at the brink instead, and the
+/// player finishes it deliberately.
+fn hold_at_the_brink(moved: Board) -> Board {
+  let #(settled, _) = rules.auto_play(moved)
+  case rules.is_won(settled) && !rules.is_won(moved) {
+    True -> moved
+    False -> settled
   }
 }

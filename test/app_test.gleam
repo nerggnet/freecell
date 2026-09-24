@@ -32,6 +32,10 @@ fn message(state: app.State) -> String {
   app.view(state).message
 }
 
+fn prompt(state: app.State) -> String {
+  option.unwrap(app.view(state).prompt, "")
+}
+
 // --- Picking cards up ------------------------------------------------------
 
 /// Game 1 leaves the six of spades exposed at the foot of column 1.
@@ -115,14 +119,14 @@ pub fn undo_at_the_start_says_there_is_nothing_to_undo_test() {
 
 pub fn q_asks_before_quitting_test() {
   let assert app.Continue(asking) = app.update(start(), app.KeyPress(Char("q")))
-  assert string.contains(app.view(asking).message, "Quit?")
+  assert string.contains(prompt(asking), "Quit?")
   let assert app.Quit(_) = app.update(asking, app.KeyPress(Char("y")))
 }
 
 pub fn declining_the_quit_carries_on_test() {
   let assert app.Continue(asking) = app.update(start(), app.KeyPress(Char("q")))
   let assert app.Continue(staying) = app.update(asking, app.KeyPress(Char("n")))
-  assert !string.contains(app.view(staying).message, "Quit?")
+  assert prompt(staying) == ""
   // And the game is still playable afterwards.
   assert app.view(press(staying, [Char("1")])).selection
     == Some(render.Selection(Cascade(0), 1))
@@ -273,7 +277,13 @@ pub fn winning_a_game_is_recorded_test() {
       [key_for(move.from), key_for(move.to)]
     })
 
-  let finished = press(start(), keystrokes)
+  // The winning move stops at the brink rather than sweeping the board, so
+  // the last thing a player does is ask for the finish.
+  let brink = press(start(), keystrokes)
+  assert app.view(brink).ready
+  assert !string.contains(string.join(app.screen(brink), "\n"), "You win")
+
+  let finished = press(brink, [Space])
   assert string.contains(string.join(app.screen(finished), "\n"), "You win")
   assert app.record(finished)
     == stats.Stats(played: 1, won: 1, streak: 1, best_streak: 1)
@@ -620,7 +630,7 @@ pub fn n_asks_before_dealing_a_new_game_test() {
   let played = press(start(), [Char("1"), Char("a")])
 
   let asking = press(played, [Char("n")])
-  assert string.contains(app.view(asking).message, "Abandon this game?")
+  assert string.contains(prompt(asking), "Abandon this game?")
   // Nothing has happened yet.
   assert app.game_number(asking) == 1
   assert app.view(asking).moves == 1
@@ -637,7 +647,7 @@ pub fn declining_the_new_deal_leaves_the_game_alone_test() {
 
   assert app.game_number(staying) == 1
   assert app.view(staying).moves == 1
-  assert !string.contains(app.view(staying).message, "Abandon")
+  assert prompt(staying) == ""
   // And the game is still playable afterwards.
   assert app.view(press(staying, [Char("2")])).selection
     == Some(render.Selection(Cascade(1), 1))
@@ -649,7 +659,7 @@ pub fn r_asks_before_starting_the_deal_over_test() {
   let played = press(start(), [Char("1"), Char("a")])
 
   let asking = press(played, [Char("R")])
-  assert string.contains(app.view(asking).message, "Start this deal over?")
+  assert string.contains(prompt(asking), "Start this deal over?")
   // Nothing has happened yet.
   assert app.view(asking).moves == 1
   assert fixture.cells(app.view(asking).board) == ["6S", ".", ".", "."]
@@ -667,7 +677,7 @@ pub fn declining_the_restart_leaves_the_game_alone_test() {
 
   assert app.view(staying).moves == 1
   assert fixture.cells(app.view(staying).board) == ["6S", ".", ".", "."]
-  assert !string.contains(app.view(staying).message, "Start this deal over")
+  assert prompt(staying) == ""
   assert app.view(press(staying, [Char("2")])).selection
     == Some(render.Selection(Cascade(1), 1))
 }
@@ -682,4 +692,67 @@ pub fn every_destructive_key_asks_first_test() {
     assert app.view(asking).moves == 1
     assert app.game_number(asking) == 1
   })
+}
+
+// --- Finishing a decided game ----------------------------------------------
+
+/// Deal 1 played to the point where every remaining card can go home.
+fn at_the_brink() -> app.State {
+  let assert Ok(dealt) = board.new(deck.deal(1))
+  let assert solver.Solved(moves, _) =
+    solver.solve(rules.Standard, dealt, 20_000)
+  press(
+    start(),
+    list.flat_map(moves, fn(entry) {
+      let #(move, _) = entry
+      [key_for(move.from), key_for(move.to)]
+    }),
+  )
+}
+
+/// The move that decides the game stops short of sweeping the board, so the
+/// screen does not cut from forty cards to none between two keypresses.
+pub fn a_decided_game_waits_to_be_finished_test() {
+  let brink = at_the_brink()
+  assert app.view(brink).ready
+  assert !rules.is_won(app.view(brink).board)
+  assert string.contains(
+    string.join(app.screen(brink), "\n"),
+    "Every card can go home",
+  )
+  // Not won, so not yet counted.
+  assert app.record(brink) == stats.empty()
+
+  let finished = press(brink, [Space])
+  assert rules.is_won(app.view(finished).board)
+  assert app.record(finished).won == 1
+}
+
+/// Finishing is not a move the player made, so it does not add to the count.
+pub fn finishing_does_not_count_as_a_move_test() {
+  let brink = at_the_brink()
+  let finished = press(brink, [Space])
+  assert app.view(finished).moves == app.view(brink).moves
+}
+
+/// There is nothing to search for once the game is decided.
+pub fn bang_finishes_a_decided_game_without_searching_test() {
+  let assert app.Continue(finished) =
+    app.update(at_the_brink(), app.KeyPress(Char("!")))
+  assert rules.is_won(app.view(finished).board)
+}
+
+/// The win banner used to sit on top of the confirmation prompts, so `q`
+/// looked dead and `n` silently cancelled a question it had never shown.
+pub fn the_prompts_are_visible_after_winning_test() {
+  let won = press(at_the_brink(), [Space])
+  assert string.contains(string.join(app.screen(won), "\n"), "You win")
+
+  let asking = press(won, [Char("q")])
+  assert string.contains(string.join(app.screen(asking), "\n"), "Quit?")
+  let assert app.Quit(_) = app.update(asking, app.KeyPress(Char("y")))
+
+  let dealing = press(won, [Char("n")])
+  assert string.contains(string.join(app.screen(dealing), "\n"), "Abandon")
+  assert app.game_number(press(dealing, [Char("y")])) != 1
 }

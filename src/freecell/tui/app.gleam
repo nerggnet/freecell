@@ -177,19 +177,25 @@ pub fn view(state: State) -> View {
       elapsed: elapsed(state),
       carry: case game.mode(state.game) {
         rules.Relaxed -> None
-        rules.Standard -> Some(rules.carrying_capacity(game.board(state.game)))
+        rules.Standard -> Some(rules.shown_capacity(game.board(state.game)))
       },
       stuck: game.status(state.game) == game.Stuck,
+      ready: ready_to_finish(state),
+      prompt: case state.mode {
+        ConfirmQuit -> Some("Quit? y to quit, anything else to stay.")
+        ConfirmNew -> Some("Abandon this game? y to deal a new one.")
+        ConfirmRestart -> Some("Start this deal over? y to shuffle it back.")
+        _ -> None
+      },
     )
-  case state.mode {
-    ConfirmQuit ->
-      View(..base, message: "Quit? y to quit, anything else to stay.")
-    ConfirmNew ->
-      View(..base, message: "Abandon this game? y to deal a new one.")
-    ConfirmRestart ->
-      View(..base, message: "Start this deal over? y to shuffle it back.")
-    _ -> base
-  }
+  base
+}
+
+/// The game is decided but not over: everything left can go home, and the
+/// player has yet to say so.
+fn ready_to_finish(state: State) -> Bool {
+  let board = game.board(state.game)
+  !rules.is_won(board) && rules.is_certain(board)
 }
 
 pub fn update(state: State, input: Input) -> Step {
@@ -245,7 +251,11 @@ fn play(state: State, pressed: Key) -> Step {
     Char("p") -> Continue(toggle_auto_play(state))
     Char("m") -> Continue(toggle_mode(state))
     Char("h") -> think(state, AHint)
-    Char("!") -> think(state, AFinish)
+    Char("!") ->
+      case ready_to_finish(state) {
+        True -> Continue(finish_now(state))
+        False -> think(state, AFinish)
+      }
     Char("u") -> Continue(undo(state))
     Char("r") -> Continue(redo(state))
     Char("n") -> Continue(State(..state, mode: ConfirmNew))
@@ -282,7 +292,12 @@ fn choose(state: State, target: Location) -> State {
 
 fn send_home(state: State) -> State {
   case state.selection {
-    None -> State(..state, message: "Pick a card up first.")
+    // With nothing in hand, space finishes a game that is already decided.
+    None ->
+      case ready_to_finish(state) {
+        True -> finish_now(state)
+        False -> State(..state, message: "Pick a card up first.")
+      }
     Some(source) ->
       case board.exposed(game.board(state.game), source) {
         Error(Nil) -> State(..state, selection: None, held: None, message: "")
@@ -484,6 +499,20 @@ fn place_for(character: String) -> Result(Location, Nil) {
 
 // --- Asking the solver -----------------------------------------------------
 
+/// Send everything home. Not recorded as a move: it is the auto-play that
+/// would have happened anyway, held back so it could be watched.
+fn finish_now(state: State) -> State {
+  note_win(changed(
+    State(
+      ..state,
+      game: game.finish(state.game),
+      selection: None,
+      held: None,
+      message: "",
+    ),
+  ))
+}
+
 fn think(state: State, want: Wanted) -> Step {
   case state.thinking {
     Some(_) -> Continue(State(..state, message: "Still thinking."))
@@ -576,14 +605,16 @@ fn finish(state: State, moves: List(#(Move, Int))) -> State {
         Error(_) -> current
       }
     })
-  State(
-    ..changed(played),
-    selection: None,
-    message: case game.status(played.game) {
-      game.Won -> "Finished."
-      _ -> "I could not play that through from here."
-    },
-  )
+  // The last move leaves the board at the brink, auto-play having held there.
+  // Asking to finish means going the rest of the way.
+  let done = case ready_to_finish(played) {
+    True -> finish_now(played)
+    False -> played
+  }
+  State(..changed(done), selection: None, message: case game.status(done.game) {
+    game.Won -> "Finished."
+    _ -> "I could not play that through from here."
+  })
 }
 
 fn place_name(place: Location) -> String {
