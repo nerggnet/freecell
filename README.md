@@ -39,6 +39,15 @@ One file, no installer. It needs Erlang/OTP 26 or later on the machine that
 runs it, but not Gleam and not this repository. Give it a terminal at least 64
 columns wide; 33 rows covers even the tallest pile the game can build.
 
+There is no native code in it — it is BEAM bytecode — so the same file runs on
+Linux, macOS and Windows, on x86-64 and ARM alike. All three build it and run
+it in CI, and the release published from Linux has been played through on an
+arm64 Mac.
+
+On Windows the shebang does not apply, so run it as `escript freecell`. Raw
+keyboard input there has never been tried on a real console: the tests cover
+everything but the console itself. If it misbehaves, please say so.
+
 ## Playing
 
 ```sh

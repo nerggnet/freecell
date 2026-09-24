@@ -34,6 +34,9 @@ jobs:
       - run: gleam export erlang-shipment
       - run: escript scripts/package.escript build/erlang-shipment build/freecell
       - run: escript build/freecell --version
+      # Exercises the record's file path, which differs per platform: XDG
+      # where set, %APPDATA% on Windows, ~/.local/share otherwise.
+      - run: escript build/freecell --stats
 
   format:
     # Formatting is the same everywhere; checking it once is enough.

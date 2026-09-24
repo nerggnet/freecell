@@ -120,14 +120,31 @@ write_file(Path, Data) ->
         {error, _} -> {error, nil}
     end.
 
-%% Where the record of games played lives. Follows XDG when it is set, and
-%% falls back to the conventional location under HOME when it is not.
+%% Where the record of games played lives: XDG where it is set, %APPDATA% on
+%% Windows, and the conventional Unix location otherwise.
 stats_path() ->
     Base = case os:getenv("XDG_DATA_HOME") of
         Dir when is_list(Dir), Dir =/= "" -> Dir;
-        _ -> filename:join(os:getenv("HOME", "."), ".local/share")
+        _ -> default_data_dir()
     end,
     unicode:characters_to_binary(filename:join([Base, "freecell", "stats"])).
+
+default_data_dir() ->
+    case os:type() of
+        {win32, _} -> env("APPDATA", home_dir());
+        _ -> filename:join(home_dir(), ".local/share")
+    end.
+
+%% Windows does not set HOME, so falling back to it there would leave the
+%% record in whichever directory the game happened to be started from.
+home_dir() ->
+    env("HOME", env("USERPROFILE", ".")).
+
+env(Name, Fallback) ->
+    case os:getenv(Name) of
+        Value when is_list(Value), Value =/= "" -> Value;
+        _ -> Fallback
+    end.
 
 %% Read from the generated .app file rather than kept in step by hand, so a
 %% packaged executable reports the version it was actually built from.
